@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "pipoumod",
+	"version": "${version}",
+	"name": "PipouMod",
+	"description": "Mod menu en jeu (Maj droit) + overlays HUD : FPS, coordonnées, keystrokes, horloge.",
+	"authors": ["Matheo"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.pipou.pipoumod.PipouModClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"minecraft": ">=1.21.1 <1.21.2",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

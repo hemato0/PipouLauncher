@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.modrinth.com;" />
+  <title>PipouLauncher</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Scène immersive : 3 couches fixes derrière tout (aurora dorée, grain, vignette) -->
+  <div class="bg-aurora"></div>
+  <div class="bg-noise"></div>
+  <div class="bg-vignette"></div>
+
+  <div class="app">
+
+    <!-- ===== Barre latérale (navigation) ===== -->
+    <aside class="sidebar">
+      <div class="side-logo">
+        <span class="logo">💜</span>
+        <span class="side-name">Pipou</span>
+      </div>
+
+      <nav class="side-nav">
+        <button class="nav-item active" data-view="home">
+          <span class="nav-ico">▚</span><span>Accueil</span>
+        </button>
+        <button class="nav-item" data-view="mods">
+          <span class="nav-ico">❖</span><span>Mods</span>
+        </button>
+        <button class="nav-item" data-view="modules">
+          <span class="nav-ico">♥</span><span>Modules</span>
+        </button>
+        <button class="nav-item" data-view="advanced">
+          <span class="nav-ico">⚙</span><span>Avancé</span>
+        </button>
+      </nav>
+
+      <div class="side-account" id="accountChip" role="button" tabindex="0"
+           title="Se connecter avec Microsoft">
+        <div class="avatar" id="avatar">?</div>
+        <div class="acct">
+          <div class="acct-name" id="acctName">Se connecter</div>
+          <div class="acct-sub" id="acctSub">Compte Microsoft</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== Zone principale ===== -->
+    <main class="main">
+
+      <!-- Héro -->
+      <section class="hero">
+        <div class="hero-hearts">
+          <span>💜</span><span>💖</span><span>💗</span><span>💕</span><span>🩷</span>
+        </div>
+        <div class="hero-content">
+          <span class="tag">💖 optimisation Minecraft</span>
+          <h1 class="hero-title">PipouLauncher</h1>
+          <p class="hero-sub">Ton Minecraft, optimisé avec amour pour ta machine. 💜</p>
+        </div>
+      </section>
+
+      <!-- ===== Vue : Accueil ===== -->
+      <section class="view active" id="view-home">
+        <div class="cols">
+          <section class="card" id="card-hw">
+            <h2>Ta machine</h2>
+            <div class="rows" id="hwRows">
+              <div class="muted">Analyse en cours…</div>
+            </div>
+          </section>
+
+          <section class="card" id="card-profile">
+            <h2>Profil de performance</h2>
+            <div class="profiles" id="profiles"></div>
+            <p class="profile-desc muted" id="profileDesc"></p>
+            <div class="ram">
+              <span>RAM allouée</span>
+              <strong id="ramValue">—</strong>
+            </div>
+            <p class="ram-note muted">
+              Allouer plus de RAM n'augmente pas les FPS — au-delà du nécessaire,
+              ça peut même aggraver les freezes (GC plus long).
+            </p>
+          </section>
+        </div>
+
+        <!-- Mods d'optimisation (déplacés sur l'Accueil pour l'accessibilité) -->
+        <section class="card" id="card-mods" style="margin-top:18px">
+          <h2>Mods d'optimisation</h2>
+          <p class="loader-gate" id="optimLoaderNote" hidden></p>
+          <div class="btn-row">
+            <button class="btn ghost" id="resolveBtn">Vérifier la compatibilité</button>
+            <button class="btn ghost" id="installBtn">⬇ Installer les mods</button>
+            <button class="btn ghost" id="openDirBtn">📁 Dossier</button>
+          </div>
+
+          <div class="dl" id="dl" hidden>
+            <div class="dl-bar"><div class="dl-fill" id="dlFill"></div></div>
+            <div class="dl-text muted" id="dlText"></div>
+          </div>
+
+          <div class="mods" id="mods"></div>
+
+          <p class="note">
+            ⓘ Ces mods optimisent <strong>ton PC</strong> (FPS, ping, freezes).
+            Le lag d'un serveur bondé (TPS) vient du serveur lui-même et ne peut
+            pas être corrigé côté client.
+          </p>
+        </section>
+      </section>
+
+      <!-- ===== Vue : Mods ===== -->
+      <section class="view" id="view-mods">
+        <!-- Gestion des profils de mods (façon « instances » CurseForge) -->
+        <section class="card" id="card-profiles">
+          <h2>Profils de mods</h2>
+          <div class="profiles-chips" id="profilesChips"></div>
+          <div class="pb-create">
+            <input type="text" id="newProfileName" class="pb-input" spellcheck="false"
+                   placeholder="Nom du nouveau profil" maxlength="24" />
+            <button class="btn ghost" id="createProfileBtn">＋ Créer (copie l'actif)</button>
+            <button class="btn ghost" id="importPackBtn">📦 Importer un modpack</button>
+          </div>
+          <div class="dl modpack-dl" id="modpackDl" hidden>
+            <div class="dl-bar"><div class="dl-fill" id="modpackFill"></div></div>
+            <div class="dl-text muted" id="modpackText"></div>
+          </div>
+
+          <!-- Vue détail du profil sélectionné (version, RAM, mods avec logos) -->
+          <div class="profile-detail" id="profileDetail"></div>
+        </section>
+
+        <!-- Gestionnaire de mods (recherche Modrinth) -->
+        <section class="card" id="card-browser">
+          <h2>Gestionnaire de mods</h2>
+          <input type="text" id="modSearch" class="mod-search" spellcheck="false"
+                 placeholder="Rechercher un mod (nom, mot-clé)…" />
+          <div class="browser-grid" id="browserGrid">
+            <div class="muted">Chargement des mods populaires…</div>
+          </div>
+        </section>
+
+        <!-- Minecraft vanilla : installé AUTOMATIQUEMENT au lancement (carte masquée) -->
+        <section class="card" id="card-vanilla" hidden>
+          <h2>Minecraft</h2>
+          <div class="step">
+            <p class="muted step-desc">
+              Télécharge Minecraft (client, librairies, assets, natives) depuis
+              Mojang. ~800 Mo la première fois, puis mis en cache.
+            </p>
+            <button class="btn ghost" id="vanillaBtn">⬇ Installer Minecraft</button>
+          </div>
+          <div class="dl" id="vanillaDl" hidden>
+            <div class="dl-bar"><div class="dl-fill" id="vanillaFill"></div></div>
+            <div class="dl-text muted" id="vanillaText"></div>
+          </div>
+        </section>
+
+        <!-- Loader Fabric : installé AUTOMATIQUEMENT au lancement (carte masquée) -->
+        <section class="card" id="card-fabric" hidden>
+          <h2>Loader Fabric</h2>
+          <div class="step">
+            <p class="muted step-desc">
+              Requis pour charger les mods. Installe la dernière version stable
+              de Fabric pour la version de Minecraft sélectionnée.
+            </p>
+            <button class="btn ghost" id="fabricBtn">⚙ Installer Fabric</button>
+          </div>
+          <div class="dl" id="fabricDl" hidden>
+            <div class="dl-bar"><div class="dl-fill" id="fabricFill"></div></div>
+            <div class="dl-text muted" id="fabricText"></div>
+          </div>
+        </section>
+
+      </section>
+
+      <!-- ===== Vue : Modules (mod menu façon Feather) ===== -->
+      <section class="view" id="view-modules">
+        <div class="modules-topbar">
+          <div class="modules-tabs" id="modulesTabs">
+            <button class="mtab active" data-cat="all">Tout</button>
+            <button class="mtab" data-cat="hud">HUD</button>
+            <button class="mtab" data-cat="pvp">PvP</button>
+            <button class="mtab" data-cat="comfort">Confort</button>
+            <button class="mtab" data-cat="visual">Visuel</button>
+            <button class="mtab" data-cat="misc">Divers</button>
+          </div>
+          <input type="text" id="modulesSearch" class="modules-search"
+                 spellcheck="false" placeholder="Rechercher un module…" />
+        </div>
+        <div class="modules-grid" id="modulesGrid">
+          <div class="muted">Chargement du catalogue…</div>
+        </div>
+      </section>
+
+      <!-- ===== Vue : Avancé ===== -->
+      <section class="view" id="view-advanced">
+        <div class="cols">
+          <section class="card" id="card-opts">
+            <h2>Réglages du jeu optimisés</h2>
+            <div class="rows" id="gameOpts"><div class="muted">—</div></div>
+          </section>
+
+          <section class="card" id="card-jvm">
+            <h2>Arguments JVM générés</h2>
+            <div class="jvm-meta">
+              GC : <strong id="gcLabel">—</strong>
+              <span class="dot-sep">·</span>
+              <span id="javaInfo">—</span>
+            </div>
+            <pre class="code" id="jvmArgs">—</pre>
+          </section>
+        </div>
+
+        <section class="card" id="card-offline">
+          <h2>Mode hors-ligne</h2>
+          <p class="muted azure-intro">
+            Sans compte Microsoft : joue en <strong>solo</strong> ou sur les
+            serveurs <strong>cracked</strong> (online-mode=false). Entre un pseudo :
+          </p>
+          <div class="azure-row">
+            <input type="text" id="offlineName" spellcheck="false" maxlength="16"
+                   placeholder="Ton pseudo (3-16 caractères)" />
+            <button class="btn ghost" id="offlineBtn">Jouer hors-ligne</button>
+          </div>
+          <div class="muted azure-status" id="offlineStatus"></div>
+        </section>
+
+        <section class="card" id="card-azure">
+          <h2>Connexion Microsoft (Azure)</h2>
+          <p class="muted azure-intro">
+            ✓ Un client_id est <strong>intégré par défaut</strong> : la connexion Microsoft
+            marche sans rien configurer. Ce champ est <strong>optionnel</strong> — seulement
+            si tu veux utiliser ta propre app Azure.
+          </p>
+          <div class="azure-row">
+            <input type="text" id="clientIdInput" spellcheck="false"
+                   placeholder="00000000-0000-0000-0000-000000000000" />
+            <button class="btn ghost" id="saveClientId">Enregistrer</button>
+          </div>
+          <div class="muted azure-status" id="azureStatus"></div>
+        </section>
+
+        <section class="card" id="card-system">
+          <h2>Optimisations système</h2>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Forcer le GPU dédié pour Minecraft</div>
+              <div class="muted toggle-desc">
+                Portables bi-GPU : lance le jeu sur la carte graphique dédiée
+                (préférence Windows par-application, réversible).
+              </div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="gpuToggle" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p class="muted sys-note">
+            ⓘ La priorité du processus de jeu est déjà relevée automatiquement
+            au lancement (ABOVE_NORMAL) — sûr, sans persistance.
+          </p>
+        </section>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== Barre de lancement (pleine largeur) ===== -->
+  <footer class="launchbar">
+    <div class="launch-summary">
+      <div class="sum">
+        <span class="sum-k">Profil</span>
+        <span class="sum-v" id="footProfile">—</span>
+      </div>
+      <div class="sum">
+        <span class="sum-k">RAM</span>
+        <span class="sum-v" id="footRam">—</span>
+      </div>
+      <div class="sum status-sum">
+        <span class="sum-k">État</span>
+        <span class="sum-v status" id="status">Prêt.</span>
+      </div>
+    </div>
+
+    <div class="launch-actions">
+      <div class="version-picker">
+        <select id="profileSelect" title="Profil de mods"></select>
+        <select id="gameVersion">
+          <option value="1.21.1">1.21.1</option>
+        </select>
+        <span class="loader-tag" id="loaderTag">Fabric</span>
+      </div>
+      <button class="btn play" id="playBtn" disabled title="Auth + lancement : prochaine étape">
+        ▶ JOUER
+      </button>
+    </div>
+  </footer>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
