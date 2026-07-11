@@ -114,7 +114,7 @@ function buildLaunchArgs({ profile, gameDir, mcVersion, account, perfJvmArgs }) 
   const map = {
     natives_directory: nativesDir,
     launcher_name: 'perf-launcher',
-    launcher_version: '0.1.15',
+    launcher_version: '0.1.16',
     classpath,
     classpath_separator: SEP,
     library_directory: path.join(gameDir, 'libraries'),
@@ -184,6 +184,12 @@ async function launch({ mcVersion, gameDir, account, perfProfile, hw, totalRamMB
   try {
     logStream = fs.createWriteStream(logPath, { flags: 'w' })
     logStream.write(`[launcher] Minecraft ${mcVersion} · Java ${java.major} (${java.path})\n`)
+    // Liste EXACTE des jars que le jeu va charger (diagnostic des conflits de version) :
+    // c'est le VRAI dossier lu par Fabric, pas le suivi interne.
+    try {
+      const gm = fs.readdirSync(path.join(gameDir, 'mods')).filter(f => /\.jar$/i.test(f))
+      logStream.write(`[launcher] ${gm.length} mods dans le jeu :\n${gm.map(f => '  - ' + f).join('\n')}\n`)
+    } catch (_) {}
     logStream.write(`[launcher] ${redact([java.path, ...args].join(' '))}\n\n`)
   } catch (_) { /* pas de log fichier : on continue quand même */ }
   const writeLog = (s) => { try { logStream && logStream.write(s) } catch (_) {} }
