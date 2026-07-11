@@ -12,7 +12,8 @@
   "license": "MIT",
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "rcedit": "^5.0.2"
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
@@ -23,6 +24,7 @@
     "appId": "com.pipou.pipoulauncher",
     "productName": "PipouLauncher",
     "artifactName": "PipouLauncher-Setup-${version}.${ext}",
+    "afterPack": "build/afterPack.js",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
