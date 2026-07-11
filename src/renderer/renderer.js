@@ -948,6 +948,7 @@ async function renderProfileDetail(id) {
   box.querySelectorAll('.pd-mod-del').forEach(x => x.addEventListener('click', async () => {
     try {
       if (x.dataset.type === 'mod') await window.launcher.removeSearchedMod(x.dataset.id)
+      else if (x.dataset.type === 'file') await window.launcher.removeModFile(x.dataset.id) // jar ajouté à la main
       else await window.launcher.removeModule(x.dataset.id)
       await afterProfileChange()
     } catch (e) { setStatus('Retrait : ' + e.message) }

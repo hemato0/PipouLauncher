@@ -16,6 +16,16 @@ const path = require('path')
 const { getConfig, setConfig } = require('./config')
 const { MODULES } = require('./modules')
 
+// Nom lisible depuis un nom de fichier de jar (on n'ouvre PAS le jar : lire
+// fabric.mod.json de 143 mods figerait le processus). Retire l'extension et les
+// suffixes de version/loader/MC les plus courants pour un affichage plus propre.
+function prettyJarName(file) {
+  let n = file.replace(/\.jar$/i, '')
+  // coupe au 1er token « version » (ex. -1.2.3, _v2, -mc1.21) tout en gardant le nom.
+  const cut = n.replace(/[ _-]+(v?\d+[.\d]*.*|mc\d.*|fabric.*|forge.*|neoforge.*|quilt.*)$/i, '')
+  return (cut && cut.length >= 2 ? cut : n).replace(/[_-]+/g, ' ').trim()
+}
+
 const DEFAULT_VERSION = '1.21.1'
 const DEFAULT_LOADER = 'fabric'
 
@@ -138,20 +148,21 @@ async function ensureInitialized(base) {
   })
 }
 
-async function list() {
+async function list(base) {
   const cfg = await getConfig()
   const out = {}
   for (const [id, p] of Object.entries(cfg.profiles || {})) {
+    // Compte les VRAIS jars du dossier (inclut les mods déposés à la main), pas le
+    // seul suivi installedMods. + les modules (PipouMod & co, déployés à part).
+    let jars = 0
+    try { jars = (await currentFiles(profileModsDir(base, id))).length } catch (_) {}
+    const modules = cfg.activeProfile === id ? (cfg.modules || {}) : (p.modules || {})
     out[id] = {
       name: p.name,
       gameVersion: p.gameVersion || DEFAULT_VERSION,
       loader: p.loader || DEFAULT_LOADER,
-      count: Object.keys(p.installedMods || {}).length + Object.keys(p.modules || {}).length
+      count: jars + Object.keys(modules).length
     }
-  }
-  // Le compte de l'actif reflète l'état courant.
-  if (cfg.activeProfile && out[cfg.activeProfile]) {
-    out[cfg.activeProfile].count = Object.keys(cfg.installedMods || {}).length + Object.keys(cfg.modules || {}).length
   }
   return { profiles: out, active: cfg.activeProfile || null }
 }
@@ -221,16 +232,28 @@ async function detail(base, id) {
   const installedMods = active ? (cfg.installedMods || {}) : (p.installedMods || {})
   const modules = active ? (cfg.modules || {}) : (p.modules || {})
 
-  const catalog = Object.fromEntries(MODULES.map(m => [m.id, { icon: m.icon, label: m.label }]))
-  const mods = []
+  // Métadonnées des mods SUIVIS, indexées par nom de fichier (jolis titre/icône/version).
+  const byFile = {}
   for (const [pid, m] of Object.entries(installedMods)) {
-    mods.push({
-      type: 'mod', id: pid,
-      name: m.title || m.slug || pid,
-      icon: m.icon || '', isImage: !!m.icon,
-      version: m.version || ''
-    })
+    for (const f of (m.files || [])) byFile[f] = { id: pid, name: m.title || m.slug || pid, icon: m.icon || '', version: m.version || '' }
   }
+
+  const mods = []
+  // On SCANNE le vrai dossier de mods du profil : TOUT jar présent est affiché, qu'il
+  // ait été installé par le launcher OU déposé à la main dans le dossier (le bug était
+  // qu'on n'affichait que les mods suivis dans installedMods).
+  const dir = profileModsDir(base, id)
+  for (const f of await currentFiles(dir)) {
+    const meta = byFile[f]
+    if (meta) {
+      mods.push({ type: 'mod', id: meta.id, file: f, name: meta.name, icon: meta.icon, isImage: !!meta.icon, version: meta.version })
+    } else {
+      mods.push({ type: 'file', id: f, file: f, name: prettyJarName(f), icon: '', isImage: false, version: '' })
+    }
+  }
+
+  // Modules (PipouMod & co) : déployés HORS du dossier profil -> ajoutés à part.
+  const catalog = Object.fromEntries(MODULES.map(m => [m.id, { icon: m.icon, label: m.label }]))
   for (const mid of Object.keys(modules)) {
     const meta = catalog[mid] || {}
     mods.push({ type: 'module', id: mid, name: meta.label || mid, icon: meta.icon || '♥', isImage: false, version: '' })

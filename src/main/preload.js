@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('launcher', {
   modVersions: (idOrSlug, gameVersion) => ipcRenderer.invoke('mod-versions', { idOrSlug, gameVersion }),
   installSearchedMod: (m, gameVersion) => ipcRenderer.invoke('install-searched-mod', { ...m, gameVersion }),
   removeSearchedMod: (projectId) => ipcRenderer.invoke('remove-searched-mod', { projectId }),
+  removeModFile: (file) => ipcRenderer.invoke('remove-mod-file', { file }),
 
   // Optimisation système (GPU dédié)
   gpuPrefGet: () => ipcRenderer.invoke('gpu-pref-get'),

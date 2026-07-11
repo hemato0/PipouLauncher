@@ -268,7 +268,7 @@ ipcMain.handle('remove-module', async (_evt, { id }) => {
 })
 
 // ---------- PROFILS DE MODS ----------
-ipcMain.handle('profiles-list', async () => profiles.list())
+ipcMain.handle('profiles-list', async () => profiles.list(gameDir()))
 
 ipcMain.handle('create-profile', async (_e, { name, opts }) => profiles.create(gameDir(), name, opts || {}))
 ipcMain.handle('switch-profile', async (_e, { id }) => profiles.switchTo(gameDir(), id))
@@ -480,6 +480,14 @@ ipcMain.handle('search-mods', async (_evt, { query, gameVersion }) => {
 })
 
 // Installe un mod cherché (+ dépendances) et le mémorise (avec logo + version).
+// Retire un jar par NOM DE FICHIER du profil actif (mods ajoutés à la main dans le
+// dossier, non suivis par installedMods). syncToGame propage au lancement.
+ipcMain.handle('remove-mod-file', async (_e, { file }) => {
+  if (!file || !/\.jar$/i.test(file)) throw new Error('Fichier de mod invalide.')
+  await fsp.rm(path.join(await modsDir(), path.basename(file)), { force: true }).catch(() => {})
+  return { removed: path.basename(file) }
+})
+
 // Liste les versions d'un mod compatibles avec la version MC + le loader actif
 // (pour le sélecteur « choisir la version » du gestionnaire de mods).
 ipcMain.handle('mod-versions', async (_evt, { idOrSlug, gameVersion }) => {
