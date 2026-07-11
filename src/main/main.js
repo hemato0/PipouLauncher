@@ -1158,6 +1158,10 @@ ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
   const md = await modsDir()
   const filesByModid = await scanModIdToFiles(md)
   const done = [], failed = [], unchanged = []
+  // Numéro de version lisible extrait d'un nom de fichier (pour l'affichage avant→après).
+  const verOf = (name) => { const m = String(name || '').match(/(\d+\.\d+[.\w-]*?)(?:\+| mc|\.jar|$)/i); return m ? m[1] : '' }
+  // Anti-blocage : une recherche/DL qui pend ne doit pas figer la fenêtre.
+  const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' : délai dépassé')), ms))])
   for (const m of (mods || [])) {
     const slug = m.slug || m.modid
     if (!slug) continue
@@ -1165,18 +1169,20 @@ ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
       // Dernier STABLE d'abord : les versions BÊTA sont la cause n°1 des conflits (une
       // bêta change/retire une API qu'un autre mod attend). On ne prend une bêta que
       // s'il n'existe AUCUN stable pour cette version de Minecraft.
-      let best = await getBestVersion(slug, gameVersion, dl)
-      if (!best) best = await getBestVersion(slug, gameVersion, dl, { allowBeta: true })
-      if (!best) { failed.push({ slug, reason: 'aucune version compatible' }); continue }
+      let best = await withTimeout(getBestVersion(slug, gameVersion, dl), 15000, 'recherche')
+      if (!best) best = await withTimeout(getBestVersion(slug, gameVersion, dl, { allowBeta: true }), 15000, 'recherche')
+      if (!best) { failed.push({ slug, name: m.name || slug, reason: 'introuvable sur Modrinth pour ' + gameVersion }); continue }
       const existing = filesByModid[m.modid] || []
+      const from = existing.length ? verOf(existing[0]) : ''
       const already = existing.length === 1 && existing[0] === best.fileName
-      await downloadFile(best.downloadUrl, path.join(md, best.fileName), best.sha1)
+      await withTimeout(downloadFile(best.downloadUrl, path.join(md, best.fileName), best.sha1), 60000, 'téléchargement')
       // Retire TOUS les autres jars de ce mod (ancienne version ET doublons) : sinon la
       // bêta incompatible resterait à côté du nouveau et le crash persisterait.
       for (const f of existing) if (f !== best.fileName) await fsp.rm(path.join(md, f), { force: true }).catch(() => {})
-      if (already) unchanged.push({ slug, name: m.name || slug })
-      else done.push({ slug, name: m.name || slug, to: best.fileName })
-    } catch (e) { failed.push({ slug, reason: e.message }) }
+      const to = verOf(best.versionNumber) || best.versionNumber
+      if (already) unchanged.push({ slug, name: m.name || slug, version: to })
+      else done.push({ slug, name: m.name || slug, from, to })
+    } catch (e) { failed.push({ slug, name: m.name || slug, reason: e.message }) }
   }
   return { done, failed, unchanged }
 })

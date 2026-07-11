@@ -428,16 +428,20 @@ function showCrashModal(data) {
         const r = await window.launcher.crashUpdateMods(mods, data.gameVersion)
         const unchanged = r.unchanged || []
         if (r.done.length) {
-          let s = `✓ ${r.done.map(d => d.name).join(', ')} passé(s) en version stable.`
-          if (unchanged.length) s += ` (${unchanged.map(u => u.name).join(', ')} déjà à jour)`
-          if (r.failed.length) s += ` — échec : ${r.failed.map(f => f.slug).join(', ')}`
+          // Détail avant→après pour que ce soit VISIBLE (ex. « Iris : 1.8.14-beta → 1.8.8 »).
+          let s = '✓ ' + r.done.map(d => `${d.name} : ${d.from ? d.from + ' → ' : ''}${d.to}`).join(' · ')
+          if (unchanged.length) s += ` · ${unchanged.map(u => u.name + ' déjà à jour').join(', ')}`
+          if (r.failed.length) s += ` · ⚠ échec : ${r.failed.map(f => (f.name || f.slug) + ' (' + f.reason + ')').join(', ')}`
           $('crashStatus').textContent = s
           showRelaunch()
+        } else if (r.failed.length) {
+          $('crashStatus').textContent = '⚠ ' + r.failed.map(f => (f.name || f.slug) + ' : ' + f.reason).join(' · ') + ' — désactive plutôt un mod ci-dessus.'
+          busy(false)
         } else if (unchanged.length) {
-          $('crashStatus').textContent = 'Déjà en dernière version stable : la mise à jour ne peut pas résoudre le conflit. Désactive plutôt un des deux mods ci-dessus (le ✕ garde l\'autre).'
+          $('crashStatus').textContent = 'Déjà en dernière version stable : la mise à jour ne peut pas résoudre le conflit. Désactive plutôt un des deux mods ci-dessus (tu ne perds pas l\'autre).'
           busy(false)
         } else {
-          $('crashStatus').textContent = 'Aucune version compatible trouvée — désactive plutôt un mod ci-dessus.'
+          $('crashStatus').textContent = 'Rien à mettre à jour — désactive plutôt un mod ci-dessus.'
           busy(false)
         }
       } catch (e) { $('crashStatus').textContent = 'Échec : ' + (e && e.message || e); busy(false) }
