@@ -103,6 +103,7 @@ public class PipouModClient implements ClientModInitializer {
 			}
 			applyZoom(client);
 			applyBrightness(client);
+			applyHitboxes(client);
 		});
 
 		// Overlays HUD (FPS / coords / keystrokes / horloge…).
@@ -174,30 +175,58 @@ public class PipouModClient implements ClientModInitializer {
 		else mc.player.connection.sendChat(m);
 	}
 
-	/** Luminosité + : gamma poussé au max vanilla (1.0), restauré quand désactivé. */
+	// Valeur « fullbright » : gamma poussé BIEN au-delà du max vanilla (1.0) pour voir dans
+	// le noir total. On considère tout gamma ≥ 5 comme « déjà le nôtre » (pour ne pas
+	// mémoriser notre propre valeur comme l'originale de l'utilisateur).
+	private static final double FULLBRIGHT = 15.0;
+
+	/** Luminosité + : gamma poussé en fullbright (contourne le clamp [0,1] de set()). */
 	private static void applyBrightness(Minecraft mc) {
 		double cur = mc.options.gamma().get();
 		if (PipouOptions.isEnabled("brightness")) {
 			if (!brightening) {
-				// On ne mémorise le gamma d'origine QUE si ce n'est pas déjà NOTRE valeur
-				// forcée (1.0). Sinon, après un crash sans restauration, options.txt garde
-				// 1.0 et on écraserait la vraie valeur de l'utilisateur. On la PERSISTE.
-				if (cur < 0.999) PipouOptions.setNum("brightness.gamma0", cur);
+				// Mémorise le gamma d'origine SEULEMENT si ce n'est pas déjà le nôtre (≥5).
+				if (cur < 5.0) PipouOptions.setNum("brightness.gamma0", cur);
 				savedGamma = PipouOptions.getNum("brightness.gamma0", 0.5);
 				brightening = true;
 			}
-			if (cur < 0.999) mc.options.gamma().set(1.0);
+			// set() clampe à [0,1] (OptionInstance.UnitDouble) -> on écrit la valeur BRUTE
+			// dans le champ interne de l'OptionInstance pour dépasser 1.0 (vrai fullbright).
+			if (cur < 5.0) setGammaRaw(mc, FULLBRIGHT);
 		} else if (brightening) {
-			mc.options.gamma().set(PipouOptions.getNum("brightness.gamma0", savedGamma));
+			setGammaRaw(mc, PipouOptions.getNum("brightness.gamma0", savedGamma));
 			brightening = false;
 		}
 	}
 
-	/** Restaure le gamma d'origine à la fermeture (sinon options.txt garderait 1.0). */
+	// Force la valeur du gamma en écrivant DIRECTEMENT le champ de l'OptionInstance (le
+	// set() public clampe à [0,1]). On repère le champ par sa VALEUR (= gamma actuel),
+	// donc indépendant du NOM remappé en jeu. Repli sur set() clampé si la réflexion rate.
+	private static void setGammaRaw(Minecraft mc, double value) {
+		Object opt = mc.options.gamma();
+		double cur = mc.options.gamma().get();
+		boolean done = false;
+		for (java.lang.reflect.Field f : opt.getClass().getDeclaredFields()) {
+			try {
+				f.setAccessible(true);
+				Object v = f.get(opt);
+				if (v instanceof Double d && d == cur) { f.set(opt, value); done = true; }
+			} catch (Throwable ignored) {}
+		}
+		if (!done) { try { mc.options.gamma().set(value); } catch (Throwable ignored) {} }
+	}
+
+	/** Restaure le gamma d'origine à la fermeture (sinon options.txt garderait le fullbright). */
 	public static void restoreBrightnessOnStop(Minecraft mc) {
 		if (brightening) {
-			try { mc.options.gamma().set(PipouOptions.getNum("brightness.gamma0", savedGamma)); } catch (Throwable ignored) {}
+			try { setGammaRaw(mc, PipouOptions.getNum("brightness.gamma0", savedGamma)); } catch (Throwable ignored) {}
 			brightening = false;
 		}
+	}
+
+	/** Hitbox : affiche les boîtes de collision des entités (comme F3+B). */
+	private static void applyHitboxes(Minecraft mc) {
+		try { mc.getEntityRenderDispatcher().setRenderHitBoxes(PipouOptions.isEnabled("hitbox")); }
+		catch (Throwable ignored) { /* méthode absente sur une version : sans effet */ }
 	}
 }

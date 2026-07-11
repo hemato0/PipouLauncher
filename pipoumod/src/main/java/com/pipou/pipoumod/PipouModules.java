@@ -45,6 +45,7 @@ public final class PipouModules {
 			new Module("zoom", "Zoom", "Rendu", "zoom", false, new Opt[]{Opt.slider("zoom.level", "Niveau de zoom", 2, 8, 3)}),
 			new Module("brightness", "Luminosité +", "Rendu", "brightness", false, NONE),
 			new Module("autosprint", "Auto-sprint", "Rendu", "autosprint", true, NONE),
+			new Module("hitbox", "Hitbox", "Rendu", "nametags", true, NONE),
 			// --- Chat (options regroupées) ---
 			new Module("chat", "Chat", "Chat", "chat_stacking", false, new Opt[]{
 					Opt.bool("chat.timestamps", "Horodatage des messages"),
