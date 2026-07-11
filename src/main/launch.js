@@ -176,11 +176,27 @@ async function launch({ mcVersion, gameDir, account, perfProfile, hw, totalRamMB
   const tok = account.accessToken
   const redact = (tok && tok.length > 10) ? (s) => s.split(tok).join('***') : (s) => s
 
+  // Log de jeu PERSISTANT (userData/game-latest.log) : indispensable pour diagnostiquer
+  // un crash (surtout un code -1/4294967295 = crash natif AVANT la fenêtre). On y écrit
+  // aussi la commande Java et, à la fin, le code de sortie.
+  const logPath = path.join(path.dirname(gameDir), 'game-latest.log')
+  let logStream = null
+  try {
+    logStream = fs.createWriteStream(logPath, { flags: 'w' })
+    logStream.write(`[launcher] Minecraft ${mcVersion} · Java ${java.major} (${java.path})\n`)
+    logStream.write(`[launcher] ${redact([java.path, ...args].join(' '))}\n\n`)
+  } catch (_) { /* pas de log fichier : on continue quand même */ }
+  const writeLog = (s) => { try { logStream && logStream.write(s) } catch (_) {} }
+
   const child = spawn(java.path, args, { cwd: gameDir })
-  child.stdout.on('data', (d) => onLog(redact(d.toString())))
-  child.stderr.on('data', (d) => onLog(redact(d.toString())))
-  child.on('error', (e) => onLog(`[spawn error] ${e.message}\n`))
-  child.on('exit', (code) => onExit(code))
+  child.stdout.on('data', (d) => { const s = redact(d.toString()); writeLog(s); onLog(s) })
+  child.stderr.on('data', (d) => { const s = redact(d.toString()); writeLog(s); onLog(s) })
+  child.on('error', (e) => { const s = `[spawn error] ${e.message}\n`; writeLog(s); onLog(s) })
+  child.on('exit', (code) => {
+    writeLog(`\n[launcher] processus terminé — code ${code}\n`)
+    try { logStream && logStream.end() } catch (_) {}
+    onExit(code)
+  })
 
   // Optim système sûre + éphémère : priorité ABOVE_NORMAL sur le process de jeu.
   const prioritized = child.pid ? setProcessPriority(child.pid, 'above') : false
