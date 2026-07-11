@@ -1022,7 +1022,10 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
   // Nettoyage des DOUBLONS de mods (2 versions du même mod) AVANT de lancer : Fabric
   // refuse 2 mods de même id -> un doublon = crash garanti. On garde la version la plus
   // haute. Couvre les doublons hérités (modpack + ancien auto-install).
-  if (manageMods) { try { await dedupModsFolder(await modsDir(), (l) => evt.sender.send('game-log', l)) } catch (_) {} }
+  // Dédup TOUJOURS (même si manageMods=OFF) : 2 jars du même mod = Fabric refuse de
+  // démarrer, donc en retirer un n'est jamais « toucher aux versions », c'est réparer un
+  // état cassé. Garde le stable > bêta, la version la plus haute sinon.
+  try { await dedupModsFolder(await modsDir(), (l) => evt.sender.send('game-log', l)) } catch (_) {}
 
   // Recopie les mods du profil ACTIF dans <gameDir>/mods (vrai dossier que le jeu lit).
   evt.sender.send('prepare-progress', { step: 'Mods', done: 0, total: 1 })

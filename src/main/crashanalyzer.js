@@ -60,6 +60,14 @@ function analyzeCrash(log) {
     }
   }
 
+  // --- 2a) Conflit MUTUEL de versions (écran Fabric « Incompatible mods found ») ---
+  // Ex : "Mod 'Iris' (iris) … requires any 0.6.x version of mod 'Sodium' (sodium), but
+  //       only the wrong version is present: 0.8.12!" -> Iris ⟷ Sodium bloqués.
+  const conf = log.match(/Mod '[^']*' \(([a-z0-9_-]+)\)[^\n]*?requires[^\n]*?of mod '[^']*' \(([a-z0-9_-]+)\)/i)
+  if (/Incompatible mods found|potential solution/i.test(log) && conf && conf[1] !== conf[2]) {
+    return { kind: 'mod-conflict', culpritId: conf[1], targetId: conf[2] }
+  }
+
   // --- 2) Dépendance Fabric manquante / incompatible (le loader refuse de démarrer) ---
   // Ex : "requires version 1.2.3 or later of sodium, which is missing!"
   const dep = log.match(/requires (?:version )?([^\s]+(?: or later)?) of ([a-z0-9_-]+)/i)

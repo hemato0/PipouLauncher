@@ -397,7 +397,7 @@ function showCrashModal(data) {
   $('crashStatus').textContent = ''
 
   let msg
-  if ((data.kind === 'mixin-conflict' || data.kind === 'class-conflict') && c) {
+  if ((data.kind === 'mixin-conflict' || data.kind === 'class-conflict' || data.kind === 'mod-conflict') && c) {
     msg = t
       ? `Le mod « ${c.name} » n'est pas compatible avec la version installée de « ${t.name} » — c'est ce qui a fait planter le jeu.`
       : `Le mod « ${c.name} » a provoqué le crash (il référence une API absente d'un autre mod).`
