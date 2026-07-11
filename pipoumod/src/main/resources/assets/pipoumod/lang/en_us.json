@@ -1,4 +1,7 @@
 {
 	"key.pipoumod.open_menu": "Open PipouMod menu",
-	"category.pipoumod": "PipouMod"
+	"key.pipoumod.copy_screenshot": "Copy last screenshot",
+	"key.pipoumod.zoom": "Zoom (hold)",
+	"category.pipoumod": "PipouMod",
+	"key.pipoumod.autotext": "Open Auto-text menu"
 }

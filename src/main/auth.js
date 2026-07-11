@@ -43,7 +43,6 @@ const MC_PROFILE_URL = 'https://api.minecraftservices.com/minecraft/profile'
 const AUTH_UA = 'perf-launcher/0.1.0 (Minecraft launcher)'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-function accountPath() { return path.join(app.getPath('userData'), 'account.dat') }
 
 async function postJson(url, body) {
   const res = await fetch(url, {
@@ -269,28 +268,8 @@ async function chainToMinecraft(msAccessToken) {
   }
 }
 
-// ---------- 3) Persistance (refresh token chiffré via l'OS) ----------
-
-// Si le chiffrement OS est indisponible, on NE mémorise PAS la session (jamais
-// de refresh token en clair) : l'utilisateur devra se reconnecter, c'est tout.
-async function saveRefresh(refreshToken) {
-  if (!safeStorage.isEncryptionAvailable()) return
-  await fsp.writeFile(accountPath(), safeStorage.encryptString(refreshToken))
-}
-async function loadRefresh() {
-  try {
-    if (!safeStorage.isEncryptionAvailable()) return null
-    const buf = await fsp.readFile(accountPath())
-    return safeStorage.decryptString(buf)
-  } catch (_) {
-    return null
-  }
-}
-async function clearAccount() {
-  await fsp.rm(accountPath(), { force: true }).catch(() => {})
-}
-
-// ---------- 4) API haut niveau ----------
+// ---------- 3) API haut niveau ----------
+// (La persistance multi-comptes est gérée par accounts.js.)
 
 // Garde d'idempotence : un 2e login pendant qu'un est en cours renvoie la même
 // promesse (pas de 2e serveur ni 2e onglet). `activeCancel` permet d'annuler.
@@ -355,8 +334,18 @@ async function doLogin({ openUrl }) {
     e.message = `[échange du code] ${e.message}`
     throw e
   }
-  await saveRefresh(tok.refresh_token)
-  return await chainToMinecraft(tok.access_token)
+  const acc = await chainToMinecraft(tok.access_token)
+  // Le refresh token (chiffré ensuite par le store multi-comptes) permet de rester
+  // connecté après fermeture du launcher.
+  return { ...acc, refreshToken: tok.refresh_token }
+}
+
+// Rafraîchit un compte Microsoft depuis son refresh token (reconnexion après
+// redémarrage / changement de compte). Renvoie le compte + un refresh token à jour.
+async function refreshAccount(refreshToken) {
+  const tok = await refreshMsToken(refreshToken)
+  const acc = await chainToMinecraft(tok.access_token)
+  return { ...acc, refreshToken: tok.refresh_token || refreshToken }
 }
 
 // Annule une connexion en cours (ex. l'utilisateur a fermé le navigateur).
@@ -364,13 +353,4 @@ function cancelLogin() {
   if (activeCancel) activeCancel()
 }
 
-// Connexion silencieuse au démarrage (via le refresh token stocké). null si aucun.
-async function silentLogin() {
-  const rt = await loadRefresh()
-  if (!rt) return null
-  const tok = await refreshMsToken(rt)
-  await saveRefresh(tok.refresh_token)
-  return await chainToMinecraft(tok.access_token)
-}
-
-module.exports = { login, cancelLogin, silentLogin, clearAccount, chainToMinecraft, offlineAccount, setClientId, hasClientId }
+module.exports = { login, cancelLogin, refreshAccount, chainToMinecraft, offlineAccount, setClientId, hasClientId }

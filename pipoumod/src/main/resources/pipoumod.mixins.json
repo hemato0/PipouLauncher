@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"package": "com.pipou.pipoumod.mixin",
+	"compatibilityLevel": "${javacompat}",
+	"client": [
+		"ChatComponentMixin",
+		"ScreenshotMixin",
+		"PlayerTabOverlayMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	}
+}

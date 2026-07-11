@@ -10,10 +10,11 @@
 	"entrypoints": {
 		"client": ["com.pipou.pipoumod.PipouModClient"]
 	},
+	"mixins": ["pipoumod.mixins.json"],
 	"depends": {
 		"fabricloader": ">=0.16.0",
-		"minecraft": ">=1.21.1 <1.21.2",
-		"java": ">=21",
+		"minecraft": "${mcdep}",
+		"java": "${javadep}",
 		"fabric-api": "*"
 	}
 }

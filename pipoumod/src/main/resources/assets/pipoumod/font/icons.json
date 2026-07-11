@@ -1,0 +1,310 @@
+{
+	"providers": [
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/armor.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/autosprint.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/autotext.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/biome.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/brightness.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/chat_copyscreen.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/chat_stacking.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/chat_timestamps.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/clock.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/coords.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/cps.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/daycount.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/direction.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/emoji.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/fps.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/held.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/hunger.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/keystrokes.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/light.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/memory.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/nametags.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/perspective.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/ping.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/potions.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/saturation.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/scoreboard.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/serverip.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/session.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/speed.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/tab_pipou.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/target.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/weather.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/xp.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:gui/icons/zoom.png",
+			"ascent": 11,
+			"height": 13,
+			"chars": [
+				""
+			]
+		}
+	]
+}

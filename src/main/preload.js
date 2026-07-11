@@ -20,12 +20,24 @@ contextBridge.exposeInMainWorld('launcher', {
   getClientId: () => ipcRenderer.invoke('get-client-id'),
   setClientId: (clientId) => ipcRenderer.invoke('set-client-id', { clientId }),
 
-  // Authentification Microsoft
-  authLogin: () => ipcRenderer.invoke('auth-login'),
-  authOffline: (username) => ipcRenderer.invoke('auth-offline', { username }),
+  // Comptes Minecraft (multi-comptes persistants + sélecteur)
+  bootLog: (msg) => { try { ipcRenderer.invoke('boot-log', msg) } catch (_) {} },
+
+  // Mises à jour automatiques du launcher.
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  onUpdateStatus: (cb) => {
+    const listener = (_e, data) => cb(data)
+    ipcRenderer.on('update-status', listener)
+    return () => ipcRenderer.removeListener('update-status', listener)
+  },
+
+  accountsList: () => ipcRenderer.invoke('accounts-list'),
+  accountsRestore: () => ipcRenderer.invoke('accounts-restore'),
+  accountAddMicrosoft: () => ipcRenderer.invoke('account-add-microsoft'),
+  accountAddOffline: (username) => ipcRenderer.invoke('account-add-offline', { username }),
+  accountSelect: (id) => ipcRenderer.invoke('account-select', { id }),
+  accountRemove: (id) => ipcRenderer.invoke('account-remove', { id }),
   authCancel: () => ipcRenderer.invoke('auth-cancel'),
-  authSilent: () => ipcRenderer.invoke('auth-silent'),
-  authLogout: () => ipcRenderer.invoke('auth-logout'),
   installFabric: (gameVersion) =>
     ipcRenderer.invoke('install-fabric', { gameVersion }),
   openModsDir: () => ipcRenderer.invoke('open-mods-dir'),

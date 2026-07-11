@@ -61,6 +61,21 @@ const PERF_MODS = [
   //  - moreculling: exige cloth-config ET une version pas encore compatible Sodium
 ]
 
+// Mods COMPAGNONS : vont ensemble mais NE sont PAS déclarés comme dépendances sur
+// Modrinth (même auteur / paire de fonctionnalités). Ex. ETF (textures) + EMF
+// (modèles) de Traben. Quand on installe l'un, on installe aussi l'autre.
+// Clé = projectId OU slug ; valeur = slugs/ids à installer aussi (bidirectionnel).
+const COMPANIONS = {
+  BVzZfTc1: ['entity-model-features'], entitytexturefeatures: ['entity-model-features'], // ETF -> EMF
+  '4I1XuqiY': ['entitytexturefeatures'], 'entity-model-features': ['entitytexturefeatures'] // EMF -> ETF
+}
+// Renvoie la liste (dédupliquée) des compagnons pour un mod (par id et/ou slug).
+function getCompanions(...keys) {
+  const out = new Set()
+  for (const k of keys) for (const c of (COMPANIONS[k] || [])) out.add(c)
+  return [...out]
+}
+
 function modApplies(mod, { gpuVendor, coreOnly }) {
   if (coreOnly && !mod.core) return false
   if (mod.gpu && mod.gpu !== gpuVendor) return false
@@ -154,7 +169,7 @@ async function getProjectsByHashes(hashes) {
 }
 
 // Meilleure version STABLE d'un projet (slug ou id) pour MC+loader. null si aucune.
-async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric') {
+async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric', opts = {}) {
   const url = `${MODRINTH_API}/project/${idOrSlug}/version`
     + `?game_versions=${encodeURIComponent(JSON.stringify([gameVersion]))}`
     + `&loaders=${encodeURIComponent(JSON.stringify([loader]))}`
@@ -164,8 +179,9 @@ async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric') {
 
   const versions = await res.json()
   if (!Array.isArray(versions) || versions.length === 0) return null
-  // On privilégie une version STABLE (canal release), sinon on prendrait des beta.
-  const v = versions.find(x => x.version_type === 'release') || versions[0]
+  // Par défaut on privilégie une version STABLE ; allowBeta = la PLUS RÉCENTE
+  // (utile quand la dernière stable est incompatible avec un autre mod).
+  const v = opts.allowBeta ? versions[0] : (versions.find(x => x.version_type === 'release') || versions[0])
   return toEntry(v)
 }
 
@@ -253,5 +269,5 @@ async function resolvePerfMods(gameVersion, loader = 'fabric', opts = {}) {
 
 module.exports = {
   PERF_MODS, resolvePerfMods, getBestVersion, gpuVendorFromModel, searchMods,
-  getProjectsMeta, getProjectsByHashes
+  getProjectsMeta, getProjectsByHashes, getCompanions
 }

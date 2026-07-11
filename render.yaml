@@ -1,0 +1,20 @@
+# Déploiement GRATUIT du service de présence PipouLauncher sur Render.com.
+#
+# Le plus simple (1 clic) : sur https://dashboard.render.com → New → Blueprint
+#   → choisir le dépôt hemato0/PipouLauncher → Apply.
+# Render lit ce fichier, construit le service depuis le dossier pipou-presence/,
+# et publie sur : https://pipou-presence.onrender.com
+#
+# (C'est exactement l'URL que le launcher injecte au jeu via -Dpipou.presence.url,
+#  donc rien d'autre à configurer : une fois en ligne, le cœur Pipou s'affiche
+#  dans le tab pour les autres joueurs qui utilisent le launcher.)
+services:
+  - type: web
+    name: pipou-presence
+    runtime: node
+    plan: free
+    rootDir: pipou-presence
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true

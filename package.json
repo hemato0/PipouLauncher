@@ -5,7 +5,8 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "dist": "electron-builder --publish never",
+    "publish": "electron-builder --publish always"
   },
   "author": "",
   "license": "MIT",
@@ -15,6 +16,45 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
+    "electron-updater": "^6.8.9",
     "systeminformation": "^5.22.0"
+  },
+  "build": {
+    "appId": "com.pipou.pipoulauncher",
+    "productName": "PipouLauncher",
+    "artifactName": "PipouLauncher-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PipouLauncher",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hemato0",
+        "repo": "PipouLauncher"
+      }
+    ]
   }
 }

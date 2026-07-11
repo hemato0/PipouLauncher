@@ -17,6 +17,12 @@ const { setProcessPriority } = require('./system')
 
 const SEP = process.platform === 'win32' ? ';' : ':'
 
+// Service de présence (badge Pipou dans le tab, façon Feather) : le mod PipouMod
+// lit cette URL via -Dpipou.presence.url. Override possible via la variable
+// d'environnement PIPOU_PRESENCE_URL (dev / autre hébergement). Vide => seul le
+// joueur local a son cœur (le mod dégrade sans backend).
+const PRESENCE_URL = (process.env.PIPOU_PRESENCE_URL || 'https://pipou-presence.onrender.com').trim()
+
 // --- Chargement + fusion des profils de version ---
 
 function versionsDir(gameDir) { return path.join(gameDir, 'versions') }
@@ -127,9 +133,12 @@ function buildLaunchArgs({ profile, gameDir, mcVersion, account, perfJvmArgs }) 
 
   const jvmArgs = expandArgs(profile.arguments.jvm, env, map)
   const gameArgs = expandArgs(profile.arguments.game, env, map)
+  // Propriété système lue par PipouMod pour la présence tab (cœur Pipou). Placée
+  // avant la mainClass (c'est un arg JVM). Omise si aucune URL n'est configurée.
+  const presenceArg = PRESENCE_URL ? [`-Dpipou.presence.url=${PRESENCE_URL}`] : []
   // perf (mémoire + GC) d'abord, puis le template JVM (java.library.path, -cp, flags Fabric),
   // puis la mainClass, puis les arguments de jeu.
-  return [...perfJvmArgs, ...jvmArgs, profile.mainClass, ...gameArgs]
+  return [...perfJvmArgs, ...presenceArg, ...jvmArgs, profile.mainClass, ...gameArgs]
 }
 
 // --- options.txt (enfin branché : le levier de perf gratuit) ---

@@ -12,6 +12,8 @@ const state = {
   gpuVendor: 'unknown',
   profiles: [],
   account: null,
+  accounts: [],
+  selectedAccountId: null,
   install: { vanilla: false, fabric: { installed: false }, mods: new Set() },
   moduleCatalog: [],
   moduleInstalled: new Set(),
@@ -27,16 +29,7 @@ const isFabricLike = (l) => l === 'fabric' || l === 'quilt'
 function applyLoaderUi(loader) {
   state.activeLoader = loader || 'fabric'
   const tag = $('loaderTag'); if (tag) tag.textContent = LOADER_LABELS[state.activeLoader] || state.activeLoader
-  const fabricLike = isFabricLike(state.activeLoader)
-  ;['resolveBtn', 'installBtn'].forEach(id => { const b = $(id); if (b) b.disabled = !fabricLike })
-  const note = $('optimLoaderNote')
-  if (note) {
-    note.hidden = fabricLike
-    note.textContent = `Catalogue Fabric/Quilt uniquement — profil actif : ${LOADER_LABELS[state.activeLoader]}. Les mods de ce pack viennent du modpack lui-même.`
-  }
-  if (state.moduleCatalog.length) renderModuleCards()
 }
-let moduleFilter = 'all'
 
 // Traduction lisible des réglages générés pour options.txt.
 const OPTION_LABELS = {
@@ -57,6 +50,17 @@ const OPTION_LABELS = {
 const $ = (id) => document.getElementById(id)
 
 function setStatus(msg) { $('status').textContent = msg }
+
+// --- Écran de chargement (splash) ---
+function splashProgress(pct, msg) {
+  const fill = $('splashFill'); if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + '%'
+  const m = $('splashMsg'); if (m && msg) m.textContent = msg
+}
+function hideSplash() {
+  const s = $('splash'); if (!s) return
+  s.classList.add('splash-hide')
+  setTimeout(() => { s.hidden = true }, 550)
+}
 
 // Échappe une valeur avant injection dans innerHTML (anti-XSS : les libellés de
 // mods, noms de GPU, messages d'erreur viennent du réseau/API tierce).
@@ -167,49 +171,9 @@ function renderInstallStatus() {
   }
 }
 
-// --- Mode hors-ligne (pseudo seul) ---
-function setupOffline() {
-  const go = async () => {
-    const name = $('offlineName').value.trim()
-    try {
-      const acct = await window.launcher.authOffline(name)
-      renderAccount(acct)
-      $('offlineStatus').textContent = `✓ Connecté hors-ligne : ${acct.name}`
-      setStatus(`Mode hors-ligne : ${acct.name} — tu peux jouer (solo / serveurs cracked) ✓`)
-    } catch (e) {
-      $('offlineStatus').textContent = e.message
-    }
-  }
-  $('offlineBtn').addEventListener('click', go)
-  $('offlineName').addEventListener('keydown', (e) => { if (e.key === 'Enter') go() })
-}
-
-// --- ID d'application Azure (client_id pour l'auth) ---
-async function setupClientId() {
-  const input = $('clientIdInput')
-  const status = $('azureStatus')
-  try {
-    const st = await window.launcher.getClientId()
-    if (st.clientId) input.value = st.clientId
-    if (st.ready) status.textContent = st.fromEnv && !st.clientId
-      ? '✓ client_id fourni par la variable d\'environnement.'
-      : '✓ client_id configuré — tu peux te connecter.'
-    else status.textContent = 'Aucun client_id : la connexion est désactivée tant qu\'il manque.'
-  } catch (_) { /* ignore */ }
-
-  $('saveClientId').addEventListener('click', async () => {
-    const id = input.value.trim()
-    try {
-      const r = await window.launcher.setClientId(id)
-      status.textContent = r.ready
-        ? '✓ Enregistré — tu peux maintenant te connecter.'
-        : 'Enregistré, mais vide : renseigne un client_id valide.'
-      setStatus(r.ready ? 'client_id Azure enregistré ✓' : 'client_id vidé.')
-    } catch (e) {
-      status.textContent = 'Erreur : ' + e.message
-    }
-  })
-}
+// (Cartes « Mode hors-ligne » et « client_id Azure » retirées de la page Avancé :
+//  l'ajout de comptes hors-ligne/Microsoft se fait via le panneau multi-comptes,
+//  et le client_id est intégré par défaut. IPC get/set-client-id conservés au besoin.)
 
 // --- Toggle GPU dédié (opt-in, réversible) ---
 async function setupGpuToggle() {
@@ -239,26 +203,144 @@ async function setupGpuToggle() {
   })
 }
 
-// --- Compte Microsoft ---
-function renderAccount(acct, opts = {}) {
-  if (acct) {
-    state.account = acct
-    $('avatar').textContent = (acct.name || '?').charAt(0).toUpperCase()
-    $('acctName').textContent = acct.name
-    $('acctSub').textContent = acct.offline
-      ? 'Hors-ligne · cliquer pour changer'
-      : 'Connecté · cliquer pour déconnecter'
-  } else if (opts.code) {
-    $('avatar').textContent = '⧗'
-    $('acctName').textContent = opts.code
-    $('acctSub').textContent = 'sur microsoft.com/link'
+// --- Comptes Minecraft (multi-comptes) ---
+// Met à jour la puce compte de la sidebar (compte ACTIF pour jouer).
+function renderAccountChip() {
+  const a = state.account
+  const av = $('avatar')
+  if (a) {
+    av.textContent = (a.name || '?').charAt(0).toUpperCase()
+    av.classList.toggle('off', !!a.offline)
+    $('acctName').textContent = a.name
+    $('acctSub').textContent = a.offline ? 'Hors-ligne' : 'Microsoft'
   } else {
-    state.account = null
-    $('avatar').textContent = '?'
-    $('acctName').textContent = 'Se connecter'
-    $('acctSub').textContent = 'Compte Microsoft'
+    av.textContent = '?'; av.classList.remove('off')
+    $('acctName').textContent = 'Ajouter un compte'
+    $('acctSub').textContent = 'Minecraft'
   }
   updatePlay()
+}
+
+// Rend la liste des comptes dans le panneau.
+function renderAccountsList() {
+  const box = $('accountsList')
+  if (!box) return
+  if (!state.accounts.length) {
+    box.innerHTML = '<div class="ap-empty">Aucun compte. Ajoute-en un ci-dessous.</div>'
+    return
+  }
+  box.innerHTML = state.accounts.map(a => {
+    const on = a.id === state.selectedAccountId
+    const initial = esc((a.name || '?').charAt(0).toUpperCase())
+    return `<div class="ap-row ${on ? 'on' : ''}" data-id="${esc(a.id)}">
+      <div class="ap-av ${a.offline ? 'off' : ''}">${initial}</div>
+      <div class="ap-info">
+        <div class="ap-name">${esc(a.name)}</div>
+        <div class="ap-type">${a.offline ? 'Hors-ligne' : 'Microsoft'}</div>
+      </div>
+      ${on ? '<span class="ap-check">✓</span>' : ''}
+      <span class="ap-del" data-del="${esc(a.id)}" title="Retirer">🗑</span>
+    </div>`
+  }).join('')
+  box.querySelectorAll('.ap-row').forEach(r => r.addEventListener('click', (e) => {
+    if (e.target.classList.contains('ap-del')) return
+    selectAccount(r.dataset.id)
+  }))
+  box.querySelectorAll('.ap-del').forEach(d => d.addEventListener('click', (e) => {
+    e.stopPropagation(); removeAccount(d.dataset.del)
+  }))
+}
+
+function apStatus(msg) { const el = $('apStatus'); if (el) el.textContent = msg || '' }
+
+// Charge la liste des comptes + le compte actif depuis le backend.
+// RÉSILIENT : si l'IPC échoue (verrou fichier transitoire côté main), on RÉESSAIE
+// au lieu d'abandonner en silence — sinon le compte reste "perdu" toute la session
+// (JOUER grisé) alors qu'il est bien enregistré.
+async function refreshAccounts() {
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+  // Budget de réessai LARGE (~6,5 s) : doit dépasser un cycle complet de lecture config
+  // côté main (~1,7 s) sinon on abandonne trop tôt et le compte reste "perdu" au boot
+  // à froid (verrou fichier). On réessaie aussi tant que le main répond "dégradé".
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const data = await window.launcher.accountsList()
+      state.accounts = data.accounts || []
+      state.selectedAccountId = data.selected || null
+      state.account = data.current || null
+      renderAccountChip()
+      renderAccountsList()
+      // Config pas encore lisible côté main : on retente au lieu de figer "aucun compte".
+      if (data.degraded && !state.account) { await sleep(400); continue }
+      return
+    } catch (e) {
+      console.warn('[accounts] échec accountsList, réessai', attempt + 1, e && e.message)
+      await sleep(300 + attempt * 150)
+    }
+  }
+  renderAccountChip()
+  renderAccountsList()
+}
+
+async function selectAccount(id) {
+  if (id === state.selectedAccountId && state.account) { toggleAccountPanel(false); return }
+  apStatus('Changement de compte…')
+  try {
+    const acc = await window.launcher.accountSelect(id)
+    state.account = acc; state.selectedAccountId = id
+    renderAccountChip(); renderAccountsList()
+    apStatus('')
+    setStatus(`Compte : ${acc.name}`)
+    toggleAccountPanel(false)
+  } catch (e) {
+    apStatus('Reconnexion nécessaire : ' + stripIpc(e.message))
+    await refreshAccounts()
+  }
+}
+
+async function removeAccount(id) {
+  try {
+    await window.launcher.accountRemove(id)
+    await refreshAccounts()
+    setStatus('Compte retiré.')
+  } catch (e) { apStatus('Retrait : ' + stripIpc(e.message)) }
+}
+
+async function addMicrosoft() {
+  const btn = $('addMsBtn'); if (btn) btn.disabled = true
+  apStatus('Fenêtre Microsoft ouverte — choisis ton compte…')
+  try {
+    const acc = await window.launcher.accountAddMicrosoft()
+    await refreshAccounts()
+    apStatus('')
+    setStatus(`Connecté : ${acc.name} ✓`)
+  } catch (e) {
+    apStatus('❌ ' + stripIpc(e.message))
+  } finally { if (btn) btn.disabled = false }
+}
+
+async function addOffline() {
+  const input = $('apOfflineName'); const name = (input.value || '').trim()
+  if (!name) { apStatus('Entre un pseudo (3-16 caractères).'); return }
+  try {
+    const acc = await window.launcher.accountAddOffline(name)
+    input.value = ''
+    await refreshAccounts()
+    apStatus('')
+    setStatus(`Compte hors-ligne : ${acc.name} ✓`)
+  } catch (e) { apStatus(stripIpc(e.message)) }
+}
+
+function stripIpc(msg) {
+  return String(msg || '').replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '')
+}
+
+function toggleAccountPanel(force) {
+  const panel = $('accountPanel'); if (!panel) return
+  const open = force === undefined ? panel.hidden : force
+  panel.hidden = !open
+  const caret = $('acctCaret'); if (caret) caret.textContent = open ? '▾' : '▴'
+  if (open) renderAccountsList()
 }
 
 // Le bouton JOUER n'est actif qu'une fois connecté.
@@ -304,43 +386,21 @@ async function launchGame() {
   }
 }
 
-let loginBusy = false
+// Clic sur la puce compte -> ouvre/ferme le panneau des comptes.
+function handleAccountClick() { toggleAccountPanel() }
 
-async function handleAccountClick() {
-  // Un clic pendant la connexion = annulation.
-  if (loginBusy) {
-    window.launcher.authCancel()
-    return
-  }
-  // Déjà connecté -> déconnexion.
-  if (state.account) {
-    await window.launcher.authLogout()
-    renderAccount(null)
-    setStatus('Déconnecté.')
-    return
-  }
-  // Connexion interactive : le navigateur s'ouvre sur l'écran Microsoft.
-  loginBusy = true
-  $('acctName').textContent = 'Connexion…'
-  $('acctSub').textContent = 'choisis ton compte (re-clic = annuler)'
-  setStatus('Fenêtre Microsoft ouverte — choisis ton compte…')
-  try {
-    const acct = await window.launcher.authLogin()
-    renderAccount(acct)
-    setStatus(`Connecté en tant que ${acct.name} ✓`)
-  } catch (e) {
-    renderAccount(null)
-    const full = (e && e.message || String(e)).replace(/^Error invoking remote method '[^']+':\s*/, '')
-    setStatus('Échec de connexion : ' + full)
-    // La barre d'état tronque : on affiche le message COMPLET dans l'onglet Avancé.
-    const az = $('azureStatus')
-    if (az) az.textContent = '❌ Échec de connexion : ' + full
-    // Repli visible immédiat sur le compte.
-    $('acctName').textContent = 'Échec — voir Avancé'
-    $('acctSub').textContent = full.slice(0, 40)
-  } finally {
-    loginBusy = false
-  }
+// Câble le panneau des comptes (boutons + fermeture au clic extérieur).
+function setupAccountPanel() {
+  const ms = $('addMsBtn'); if (ms) ms.addEventListener('click', addMicrosoft)
+  const off = $('addOfflineBtn'); if (off) off.addEventListener('click', addOffline)
+  const input = $('apOfflineName')
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') addOffline() })
+  // Ferme le panneau si on clique en dehors.
+  document.addEventListener('click', (e) => {
+    const panel = $('accountPanel'), chip = $('accountChip')
+    if (!panel || panel.hidden) return
+    if (!panel.contains(e.target) && !chip.contains(e.target)) toggleAccountPanel(false)
+  })
 }
 
 // --- Navigation par onglets (sidebar) ---
@@ -382,53 +442,8 @@ async function selectProfile(profileId) {
   setStatus(`Profil « ${state.profile.name} » appliqué.`)
 }
 
-// --- Résolution des mods de perf via Modrinth ---
-async function resolveMods() {
-  const gameVersion = $('gameVersion').value
-  setStatus(`Recherche des mods pour ${gameVersion} (Fabric)…`)
-  $('mods').innerHTML = '<div class="muted">Interrogation de Modrinth…</div>'
-
-  try {
-    const { resolved, unavailable, errored } =
-      await window.launcher.resolveMods(gameVersion, state.profile.id)
-
-    const present = state.install.mods || new Set()
-    const okHtml = resolved.map(m => {
-      const already = present.has(m.fileName)
-      return `
-      <div class="mod ok">
-        <span class="dot"></span>
-        <div>
-          <div class="name">${esc(m.label)}${already ? ' <span class="badge">déjà installé</span>' : ''}</div>
-          <div class="why">${esc(m.why)}</div>
-        </div>
-        <span class="ver">${esc(m.versionNumber)}</span>
-      </div>`
-    }).join('')
-
-    const already = resolved.filter(m => present.has(m.fileName)).length
-
-    const naHtml = (unavailable || []).map(slug => `
-      <div class="mod missing">
-        <span class="dot"></span>
-        <div><div class="name">${esc(slug)}</div>
-        <div class="why">Pas de version compatible ${esc(gameVersion)}/Fabric.</div></div>
-      </div>`).join('')
-
-    const errHtml = (errored || []).map(e => `
-      <div class="mod missing">
-        <span class="dot"></span>
-        <div><div class="name">${esc(e.slug)}</div>
-        <div class="why">Erreur réseau : ${esc(e.error)}</div></div>
-      </div>`).join('')
-
-    $('mods').innerHTML = (okHtml + naHtml + errHtml) || '<div class="muted">Aucun mod trouvé.</div>'
-    setStatus(`${resolved.length} compatible(s) — ${already} déjà installé(s), ${resolved.length - already} à télécharger.`)
-  } catch (e) {
-    $('mods').innerHTML = `<div class="muted">Erreur : ${esc(e.message)}</div>`
-    setStatus('Échec de la résolution des mods.')
-  }
-}
+// (resolveMods/installMods retirés : les mods d'optimisation manquants sont installés
+//  AUTOMATIQUEMENT au lancement, cf launch-game côté main.)
 
 // Libellés lisibles des phases de téléchargement vanilla.
 const VANILLA_PHASES = {
@@ -511,139 +526,8 @@ async function installFabric() {
   }
 }
 
-// --- Téléchargement effectif des mods dans le dossier géré ---
-async function installMods() {
-  const gameVersion = $('gameVersion').value
-
-  $('installBtn').disabled = true
-  $('resolveBtn').disabled = true
-  $('dl').hidden = false
-  $('dlFill').style.width = '0%'
-  $('dlText').textContent = 'Préparation…'
-  setStatus('Téléchargement des mods…')
-
-  const unsub = window.launcher.onDownloadProgress((p) => {
-    const pct = Math.round((p.done / p.total) * 100)
-    $('dlFill').style.width = `${pct}%`
-    const st = p.phase === 'done' ? (p.status || '') : '…'
-    $('dlText').textContent = `${p.done}/${p.total} — ${p.label} ${st}`
-  })
-
-  try {
-    const r = await window.launcher.installMods(gameVersion, state.profile.id)
-    const dl = r.results.filter(x => x.status === 'downloaded').length
-    const cached = r.results.filter(x => x.status === 'cached').length
-    const err = r.results.filter(x => x.status === 'error').length
-    const removed = (r.removed || []).length
-
-    $('dlFill').style.width = '100%'
-    $('dlText').textContent =
-      `Terminé : ${dl} téléchargé(s), ${cached} déjà présent(s)` +
-      (removed ? `, ${removed} obsolète(s) supprimé(s)` : '') +
-      (err ? `, ${err} en erreur` : '') + `. → ${esc(r.dir)}`
-    setStatus(err ? `${err} mod(s) en erreur — voir la liste.` : 'Mods installés ✓')
-
-    renderInstallResults(r.results)
-    await refreshInstallStatus()
-  } catch (e) {
-    $('dlText').textContent = `Erreur : ${esc(e.message)}`
-    setStatus('Échec du téléchargement.')
-  } finally {
-    unsub && unsub()
-    $('installBtn').disabled = false
-    $('resolveBtn').disabled = false
-  }
-}
-
-// Affiche l'état après installation (téléchargé / caché / erreur).
-function renderInstallResults(results) {
-  $('mods').innerHTML = results.map(r => {
-    const cls = r.status === 'error' ? 'missing' : 'ok'
-    const tag = r.status === 'downloaded' ? 'téléchargé'
-      : r.status === 'cached' ? 'déjà présent' : `erreur : ${r.error || ''}`
-    return `<div class="mod ${cls}">
-      <span class="dot"></span>
-      <div><div class="name">${esc(r.slug || r.label)}</div><div class="why">${esc(tag)}</div></div>
-    </div>`
-  }).join('')
-}
-
-// --- Modules (mod menu façon Feather : grille de cartes) ---
-async function setupModules() {
-  const grid = $('modulesGrid')
-  try {
-    const data = await window.launcher.modulesList()
-    state.moduleCatalog = data.modules || []
-    state.moduleInstalled = new Set(data.installed || [])
-  } catch (_) {
-    grid.innerHTML = '<div class="muted">Erreur de chargement des modules.</div>'
-    return
-  }
-
-  document.querySelectorAll('.mtab').forEach(t => t.addEventListener('click', () => {
-    document.querySelectorAll('.mtab').forEach(x => x.classList.remove('active'))
-    t.classList.add('active')
-    moduleFilter = t.dataset.cat
-    renderModuleCards()
-  }))
-  $('modulesSearch').addEventListener('input', renderModuleCards)
-  renderModuleCards()
-}
-
-// Recharge l'état des modules (après un changement de profil) sans re-binder.
-async function reloadModules() {
-  try {
-    const data = await window.launcher.modulesList()
-    state.moduleInstalled = new Set(data.installed || [])
-    renderModuleCards()
-  } catch (_) { /* ignore */ }
-}
-
-function renderModuleCards() {
-  const grid = $('modulesGrid')
-  const q = $('modulesSearch').value.trim().toLowerCase()
-  const gated = !isFabricLike(state.activeLoader)
-  const banner = gated
-    ? `<div class="loader-gate">Ces modules sont Fabric/Quilt uniquement — profil actif : ${esc(LOADER_LABELS[state.activeLoader] || state.activeLoader)}.</div>`
-    : ''
-
-  const html = state.moduleCatalog.filter(m => {
-    if (moduleFilter !== 'all' && m.category !== moduleFilter) return false
-    if (q && !m.label.toLowerCase().includes(q) && !(m.description || '').toLowerCase().includes(q)) return false
-    return true
-  }).map(m => {
-    const on = state.moduleInstalled.has(m.id)
-    const warn = m.serverNote ? `<span class="mc-warn" title="${esc(m.serverNote)}">⚠</span>` : ''
-    return `<div class="module-card ${on ? 'on' : ''}">
-      <div class="mc-top"><span class="mc-name">${esc(m.label)}</span>${warn}</div>
-      <div class="mc-icon">${esc(m.icon || '♥')}</div>
-      <div class="mc-desc">${esc(m.description)}</div>
-      <button class="mc-toggle ${on ? 'on' : ''}" data-module="${esc(m.id)}" ${gated && !on ? 'disabled' : ''}>${on ? 'Activé' : 'Désactivé'}</button>
-    </div>`
-  }).join('')
-
-  grid.innerHTML = banner + (html || '<div class="muted">Aucun module dans cette catégorie.</div>')
-  grid.querySelectorAll('.mc-toggle').forEach(b => b.addEventListener('click', () => toggleModule(b)))
-}
-
-async function toggleModule(btn) {
-  const id = btn.dataset.module
-  const on = state.moduleInstalled.has(id)
-  btn.disabled = true
-  btn.textContent = on ? 'Retrait…' : 'Installation…'
-  setStatus(on ? `Retrait de « ${id} »…` : `Activation de « ${id} »…`)
-  try {
-    if (on) { await window.launcher.removeModule(id); state.moduleInstalled.delete(id) }
-    else { await window.launcher.installModule(id, $('gameVersion').value); state.moduleInstalled.add(id) }
-    setStatus(on ? 'Module retiré.' : 'Module activé ✓')
-  } catch (e) {
-    setStatus('Module : ' + e.message)
-  } finally {
-    btn.disabled = false
-    renderModuleCards()
-    refreshProfiles() // met à jour le compte + la liste de mods du profil
-  }
-}
+// (Page « Modules » retirée : les fonctions client vivent dans le mod menu en jeu
+//  PipouMod, toujours actif ; les mods externes s'installent via l'onglet « Mods ».)
 
 // --- Liste dynamique des versions Minecraft (toutes les releases Mojang) ---
 async function setupVersions() {
@@ -715,11 +599,14 @@ async function toggleBrowserMod(btn) {
       btn.classList.remove('on'); btn.textContent = 'Installer'
       setStatus('Mod retiré.')
     } else {
-      await window.launcher.installSearchedMod(
+      const r = await window.launcher.installSearchedMod(
         { projectId: pid, slug: btn.dataset.slug, title: btn.dataset.title, iconUrl: btn.dataset.icon },
         $('gameVersion').value)
       btn.classList.add('on'); btn.textContent = 'Installé'
-      setStatus(`${btn.dataset.title} installé ✓`)
+      const added = (r && r.added) || []
+      setStatus(added.length
+        ? `${btn.dataset.title} installé ✓ — avec ${added.length} mod${added.length > 1 ? 's' : ''} lié${added.length > 1 ? 's' : ''} : ${added.slice(0, 3).join(', ')}${added.length > 3 ? '…' : ''}`
+        : `${btn.dataset.title} installé ✓`)
     }
   } catch (e) {
     btn.textContent = on ? 'Installé' : 'Installer'
@@ -954,7 +841,6 @@ async function deleteProfile(id) {
 async function afterProfileChange() {
   await refreshProfiles()
   loadBrowser($('modSearch').value.trim())
-  reloadModules()
 }
 
 async function setupProfiles() {
@@ -1020,22 +906,55 @@ async function importModpack() {
 }
 
 // --- Démarrage : on analyse la machine dès l'ouverture ---
+const B = (m) => { try { window.launcher.bootLog && window.launcher.bootLog(m) } catch (_) {} }
 async function init() {
-  const r = await window.launcher.analyze()
-  Object.assign(state, {
-    hw: r.hw, profile: r.profile, ramMB: r.ramMB, jvmArgs: r.jvmArgs,
-    gcLabel: r.gcLabel, java: r.java, gameOptions: r.gameOptions,
-    gpuVendor: r.gpuVendor, profiles: r.profiles
-  })
+  const started = Date.now()
+  B('init START')
 
-  renderHardware(state.hw)
-  renderProfiles()
-  renderCurrent()
-  setStatus(`Profil détecté automatiquement : « ${state.profile.name} ».`)
+  // MISE À JOUR AUTO du launcher (app packagée) : on vérifie AVANT tout, pendant le splash.
+  // Si une mise à jour existe, elle se télécharge et s'installe toute seule (redémarrage).
+  window.launcher.onUpdateStatus((s) => {
+    if (s.state === 'checking') splashProgress(4, 'Vérification des mises à jour…')
+    else if (s.state === 'available') splashProgress(6, `Mise à jour ${s.version || ''} trouvée…`)
+    else if (s.state === 'downloading') splashProgress(Math.max(6, Math.min(99, s.percent || 0)), `Téléchargement de la mise à jour ${s.percent || 0}%…`)
+    else if (s.state === 'installing') splashProgress(100, 'Installation… le launcher va redémarrer 💜')
+  })
+  try {
+    splashProgress(4, 'Vérification des mises à jour…')
+    const u = await window.launcher.checkUpdate()
+    if (u && u.state === 'updating') return // une MAJ s'installe -> on reste sur le splash
+  } catch (_) {}
+
+  // LE COMPTE D'ABORD — indépendamment de tout le reste. Il est purement local
+  // (config.json) et ne doit JAMAIS dépendre de analyze / versions / profils / réseau.
+  // Cause du bug "compte pas affiché, JOUER grisé" : refreshAccounts était la DERNIÈRE
+  // étape d'init ; le moindre échec en amont (analyze, rendu, réseau) tuait init AVANT
+  // et le compte n'était jamais chargé. On le charge donc en tout premier, gardé.
+  splashProgress(10, 'Ton compte…')
+  try { await refreshAccounts() } catch (_) {}
+  B('après refreshAccounts (early) state.account=' + (state.account ? state.account.name : 'null'))
+
+  splashProgress(20, 'Analyse de ta machine…')
+  try {
+    const r = await window.launcher.analyze()
+    Object.assign(state, {
+      hw: r.hw, profile: r.profile, ramMB: r.ramMB, jvmArgs: r.jvmArgs,
+      gcLabel: r.gcLabel, java: r.java, gameOptions: r.gameOptions,
+      gpuVendor: r.gpuVendor, profiles: r.profiles
+    })
+    renderHardware(state.hw)
+    renderProfiles()
+    renderCurrent()
+    setStatus(`Profil détecté automatiquement : « ${state.profile.name} ».`)
+  } catch (e) {
+    setStatus('Analyse partielle : ' + (e && e.message || e))
+  }
+  splashProgress(40, 'Versions de Minecraft…')
 
   setupTabs()
   await setupVersions()
   refreshInstallStatus()
+  splashProgress(60, 'Réglages & système…')
   $('gameVersion').addEventListener('change', async () => {
     // La version choisie est enregistrée sur le profil ACTIF (version par instance).
     const active = $('profileSelect') ? $('profileSelect').value : null
@@ -1048,25 +967,32 @@ async function init() {
   })
   $('vanillaBtn').addEventListener('click', installVanilla)
   $('fabricBtn').addEventListener('click', installFabric)
-  $('resolveBtn').addEventListener('click', resolveMods)
-  $('installBtn').addEventListener('click', installMods)
-  $('openDirBtn').addEventListener('click', () => window.launcher.openModsDir())
   $('accountChip').addEventListener('click', handleAccountClick)
   $('playBtn').addEventListener('click', launchGame)
   updatePlay()
-  setupOffline()
-  setupClientId()
   setupGpuToggle()
-  setupModules()
+  setupAccountPanel()
+  splashProgress(78, 'Profils & mods…')
   // Les profils AVANT le gestionnaire : refreshProfiles fixe #gameVersion sur la
   // version du profil actif, que loadBrowser lit ensuite (sinon version par défaut).
-  await setupProfiles()
-  setupModBrowser()
+  try { await setupProfiles() } catch (e) { console.warn('setupProfiles:', e && e.message) }
+  try { setupModBrowser() } catch (_) {}
 
-  // Restauration silencieuse d'une session précédente.
-  window.launcher.authSilent().then((acct) => {
-    if (acct) renderAccount(acct)
-  }).catch(() => {})
+  // Ré-sync du compte (déjà affiché tôt) — non bloquant : garantit l'état à jour
+  // après le chargement des profils.
+  splashProgress(92, 'Comptes…')
+  try { await refreshAccounts() } catch (_) {}
+
+  // Prêt : on laisse le splash affiché au moins ~800 ms (pas de flash), puis on masque.
+  B('init FIN state.account=' + (state.account ? state.account.name : 'null'))
+  splashProgress(100, 'Prêt ! 💜')
+  const elapsed = Date.now() - started
+  setTimeout(hideSplash, Math.max(0, 800 - elapsed))
 }
 
-init()
+// Si l'init plante, on masque quand même le splash pour ne pas rester bloqué.
+init().catch((e) => {
+  B('init A JETÉ: ' + (e && e.message || e) + ' | ' + (e && e.stack || '').split('\n').slice(0, 3).join(' <<< '))
+  splashProgress(100, 'Erreur : ' + (e && e.message || e))
+  setTimeout(hideSplash, 1200)
+})

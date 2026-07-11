@@ -7,9 +7,13 @@ const path = require('path')
 const fs = require('fs')
 const fsp = require('fs/promises')
 
+// Nom d'app FIXE : garde userData = %APPDATA%/perf-launcher même une fois packagé
+// (productName = "PipouLauncher"), pour ne pas perdre comptes/profils existants.
+app.setName('perf-launcher')
+
 const { detectHardware, pickProfile, computeRamMB, PROFILES } = require('./hardware')
 const { buildJvmPlan } = require('./jvm')
-const { resolvePerfMods, gpuVendorFromModel, getBestVersion, searchMods, getProjectsMeta, getProjectsByHashes } = require('./modrinth')
+const { resolvePerfMods, gpuVendorFromModel, getBestVersion, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions } = require('./modrinth')
 const crypto = require('crypto')
 const { optionsForProfile } = require('./settings')
 const { downloadMods, reconcileMods, downloadFile, fetchJson } = require('./downloader')
@@ -20,10 +24,22 @@ const { parseModpack } = require('./modpack')
 const { detectJava } = require('./java')
 const { launch, findModdedProfile } = require('./launch')
 const { installLoader, LOADER_LABEL, LOADERS, FABRIC_LIKE, isValidLoader, latestLoaderVersion } = require('./loaders')
+const { scanMissingDeps, findConflicts } = require('./depscan')
 const { setGpuPreference, clearGpuPreference, getGpuPreference } = require('./system')
 const { getConfig, setConfig, updateConfig } = require('./config')
 const profiles = require('./profiles')
 const auth = require('./auth')
+const accounts = require('./accounts')
+
+// Journal de démarrage (userData/boot.log) : trace le boot pour diagnostiquer un
+// problème CHEZ L'UTILISATEUR (ex. compte non affiché) qu'on ne reproduit pas en dev.
+// Repart à zéro à chaque lancement du processus primaire.
+function bootLogPath() { try { return path.join(app.getPath('userData'), 'boot.log') } catch (_) { return null } }
+function bootLog(msg) {
+  const p = bootLogPath(); if (!p) return
+  let stamp = ''; try { stamp = new Date().toISOString() } catch (_) {}
+  try { fs.appendFileSync(p, `${stamp} [${process.pid}] ${msg}\n`) } catch (_) {}
+}
 
 // Compte connecté (garde le token de jeu EN MAIN, jamais exposé au renderer).
 let currentAccount = null
@@ -34,6 +50,31 @@ function gameDir() { return path.join(app.getPath('userData'), 'minecraft') }
 // Dossier où l'on INSTALLE/LIT les mods = dossier RÉEL du profil actif.
 // (Le jeu lit gameDir/mods, alimenté par profiles.syncToGame au lancement.)
 function modsDir() { return profiles.activeModsDir(gameDir()) }
+
+// Installe Sinytra Connector + Forgified Fabric API (NeoForge) s'ils manquent : ils
+// permettent d'exécuter les mods Fabric (dont PipouMod) sur un profil NeoForge.
+async function ensureConnector(md, gv, evt) {
+  const need = [
+    { slug: 'connector', match: 'connector' },
+    { slug: 'forgified-fabric-api', match: 'forgified' }
+  ]
+  let files = await fsp.readdir(md).catch(() => [])
+  for (const n of need) {
+    if (files.some(f => f.toLowerCase().includes(n.match) && f.endsWith('.jar'))) continue
+    try {
+      const v = await getBestVersion(n.slug, gv, 'neoforge', { allowBeta: true })
+      if (v && v.downloadUrl) {
+        await downloadFile(v.downloadUrl, path.join(md, v.fileName), v.sha1)
+        files.push(v.fileName)
+        evt.sender.send('game-log', `[launcher] ${n.slug} installé (Connector pour PipouMod).\n`)
+      } else {
+        evt.sender.send('game-log', `[launcher] ⚠ ${n.slug} introuvable pour NeoForge ${gv} — PipouMod pourrait ne pas charger.\n`)
+      }
+    } catch (e) {
+      evt.sender.send('game-log', `[launcher] ⚠ ${n.slug} : ${e.message}\n`)
+    }
+  }
+}
 
 // Loader par défaut des CATALOGUES orientés Fabric (mods de perf + Modules).
 // Fabric et Quilt partagent l'écosystème Fabric.
@@ -525,23 +566,47 @@ ipcMain.handle('search-mods', async (_evt, { query, gameVersion }) => {
 ipcMain.handle('install-searched-mod', async (_evt, { projectId, slug, title, iconUrl, gameVersion }) => {
   const { loader } = await activeLoaderInfo()
   const ml = browserLoader(loader)
+  const dir = await modsDir()
+  await fsp.mkdir(dir, { recursive: true })
+
+  // Mod choisi + ses dépendances REQUISES (BFS, pour TOUS les mods, via Modrinth).
   const { items, missing } = await resolveModuleItems(slug, gameVersion, ml)
   if (!items.length) throw new Error(`Aucune version compatible ${gameVersion}/${LOADER_LABEL[loader] || loader}.`)
   if (missing.length) throw new Error(`Dépendance(s) requise(s) introuvable(s) pour ${gameVersion}/${LOADER_LABEL[loader] || loader} : ${missing.join(', ')}.`)
-  const dir = await modsDir()
-  await fsp.mkdir(dir, { recursive: true })
-  for (const it of items) await downloadFile(it.downloadUrl, path.join(dir, it.fileName), it.sha1)
+
+  // + mods COMPAGNONS curatés (paires non déclarées sur Modrinth, ex. ETF↔EMF).
+  const all = [...items]
+  for (const cslug of getCompanions(projectId, slug)) {
+    try { const { items: ci } = await resolveModuleItems(cslug, gameVersion, ml); all.push(...ci) } catch (_) {}
+  }
+  // Dédup par projectId (une dépendance partagée n'est installée qu'une fois).
+  const seen = new Set(), uniq = []
+  for (const it of all) { if (it.projectId && !seen.has(it.projectId)) { seen.add(it.projectId); uniq.push(it) } }
+
+  // Télécharge tout.
+  for (const it of uniq) await downloadFile(it.downloadUrl, path.join(dir, it.fileName), it.sha1)
+
+  // Logo + vrai nom Modrinth pour chaque mod lié (le principal garde ceux de la recherche).
+  const metas = await getProjectsMeta(uniq.filter(it => it.projectId !== projectId).map(it => it.projectId))
 
   const cfg = await getConfig()
   const installedMods = cfg.installedMods || {}
-  installedMods[projectId] = {
-    slug, title,
-    icon: iconUrl || '',
-    version: (items[0] && items[0].versionNumber) || '',
-    files: items.map(it => it.fileName)
+  const added = []
+  for (const it of uniq) {
+    const isMain = it.projectId === projectId
+    const m = metas[it.projectId] || {}
+    // Chaque mod (principal + dépendances + compagnons) = une entrée VISIBLE à part.
+    installedMods[it.projectId] = {
+      slug: isMain ? slug : (m.slug || it.slug),
+      title: isMain ? title : (m.title || it.slug),
+      icon: isMain ? (iconUrl || '') : (m.icon || ''),
+      version: it.versionNumber || '',
+      files: [it.fileName]
+    }
+    if (!isMain) added.push(m.title || it.slug)
   }
   await setConfig({ installedMods })
-  return { projectId, files: installedMods[projectId].files }
+  return { projectId, added }
 })
 
 // Retire un mod du gestionnaire (jars non partagés).
@@ -588,40 +653,117 @@ ipcMain.handle('set-client-id', async (_evt, { clientId }) => {
   return { ready: auth.hasClientId() }
 })
 
-// --- Authentification Microsoft ---
+// --- Comptes Minecraft (multi-comptes, persistants, avec sélecteur) ---
 
-// Connexion interactive : ouvre le navigateur sur la page Microsoft et affiche
-// le code. Le token de jeu reste en main ; on ne renvoie que {uuid, name}.
-ipcMain.handle('auth-login', async () => {
-  currentAccount = await auth.login({ openUrl: (url) => shell.openExternal(url) })
-  return publicAccount(currentAccount)
+// Résout un compte (par id) en compte JOUABLE (avec accessToken frais).
+// Hors-ligne : direct. Microsoft : rafraîchit via le refresh token stocké.
+async function resolveAccount(id) {
+  const pub = await accounts.getPublic(id)
+  if (!pub) return null
+  if (pub.offline) return auth.offlineAccount(pub.name)
+  const rt = await accounts.getSecret(id)
+  if (!rt) throw new Error('Session Microsoft absente — reconnecte ce compte.')
+  const acc = await auth.refreshAccount(rt)
+  await accounts.updateSecret(id, acc.refreshToken) // rotation du token
+  return acc
+}
+
+// Vue "compte affichable" à partir des infos PUBLIQUES en cache (nom/uuid) : évite
+// d'attendre le refresh du token pour afficher le compte connecté au démarrage.
+function displayAccount(pub) { return pub ? { uuid: pub.uuid, name: pub.name, offline: !!pub.offline } : null }
+
+// Journal de démarrage écrit depuis le renderer (étapes d'init côté UI).
+ipcMain.handle('boot-log', (_e, msg) => bootLog('UI ' + msg))
+
+// Vérification + installation AUTOMATIQUE des mises à jour (app packagée uniquement,
+// via GitHub Releases). Appelé par le renderer AU DÉBUT du chargement (splash).
+// Résout : 'dev' (pas packagé), 'none' (à jour -> continuer), 'updating' (une MAJ se
+// télécharge et va s'installer -> le splash attend le redémarrage), 'error'/'timeout'.
+ipcMain.handle('check-update', async (evt) => {
+  if (!app.isPackaged) return { state: 'dev' }
+  const wc = evt.sender
+  return await new Promise((resolve) => {
+    let done = false
+    const finish = (r) => { if (!done) { done = true; resolve(r) } }
+    const send = (s) => { try { wc.send('update-status', s) } catch (_) {} }
+    try {
+      const { autoUpdater } = require('electron-updater')
+      autoUpdater.autoDownload = true
+      autoUpdater.autoInstallOnAppQuit = true
+      autoUpdater.removeAllListeners()
+      autoUpdater.on('checking-for-update', () => send({ state: 'checking' }))
+      autoUpdater.on('update-not-available', () => { send({ state: 'none' }); finish({ state: 'none' }) })
+      autoUpdater.on('update-available', (i) => { send({ state: 'available', version: i && i.version }); finish({ state: 'updating' }) })
+      autoUpdater.on('download-progress', (p) => send({ state: 'downloading', percent: Math.round((p && p.percent) || 0) }))
+      autoUpdater.on('update-downloaded', () => { send({ state: 'installing' }); setTimeout(() => { try { autoUpdater.quitAndInstall() } catch (_) {} }, 1200) })
+      autoUpdater.on('error', (e) => { bootLog('updater: ' + (e && e.message)); send({ state: 'error' }); finish({ state: 'error' }) })
+      autoUpdater.checkForUpdates().catch((e) => { bootLog('updater check: ' + (e && e.message)); finish({ state: 'error' }) })
+      setTimeout(() => finish({ state: 'timeout' }), 12000) // ne bloque jamais le splash
+    } catch (e) { bootLog('updater init: ' + (e && e.message)); finish({ state: 'error' }) }
+  })
 })
 
-// Connexion HORS-LIGNE (pseudo seul, sans Microsoft).
-ipcMain.handle('auth-offline', async (_evt, { username }) => {
-  currentAccount = auth.offlineAccount(username)
-  return publicAccount(currentAccount)
-})
-
-// Annule une connexion en cours (navigateur fermé, re-clic…).
-ipcMain.handle('auth-cancel', async () => { auth.cancelLogin(); return true })
-
-// Reconnexion silencieuse au démarrage (via le refresh token stocké).
-ipcMain.handle('auth-silent', async () => {
+// Liste des comptes + lequel est sélectionné + le compte à AFFICHER (immédiat).
+// Ne REJETTE JAMAIS : si getConfig est momentanément illisible, renvoie un état
+// dégradé (le renderer réessaiera) plutôt que de casser l'affichage du compte.
+ipcMain.handle('accounts-list', async () => {
   try {
-    currentAccount = await auth.silentLogin()
-  } catch (_) {
-    currentAccount = null // refresh expiré : l'utilisateur devra se reconnecter
+    const { accounts: list, selected } = await accounts.list()
+    const sel = list.find(a => a.id === selected) || null
+    const out = { accounts: list, selected, current: currentAccount ? publicAccount(currentAccount) : displayAccount(sel) }
+    bootLog(`accounts-list -> accounts=${list.length} current=${out.current ? out.current.name : 'null'}`)
+    return out
+  } catch (e) {
+    bootLog('accounts-list DÉGRADÉ (config illisible): ' + (e && e.message))
+    return { accounts: [], selected: null, current: null, degraded: true }
   }
-  return publicAccount(currentAccount)
 })
 
-// Déconnexion : efface le compte stocké.
-ipcMain.handle('auth-logout', async () => {
-  await auth.clearAccount()
-  currentAccount = null
-  return true
+// Reconnexion au démarrage : renvoie le compte en CACHE tout de suite (le token de
+// jeu est (ré)résolu plus tard, au lancement — voir launch-game).
+ipcMain.handle('accounts-restore', async () => {
+  if (currentAccount) return { account: publicAccount(currentAccount) }
+  const { selected } = await accounts.list()
+  return { account: displayAccount(await accounts.getPublic(selected)) }
 })
+
+// Ajoute un compte Microsoft (ouvre le navigateur) et le sélectionne.
+ipcMain.handle('account-add-microsoft', async () => {
+  const acc = await auth.login({ openUrl: (url) => shell.openExternal(url) })
+  await accounts.add({ type: 'msa', name: acc.name, uuid: acc.uuid, refreshToken: acc.refreshToken })
+  currentAccount = acc
+  return publicAccount(acc)
+})
+
+// Ajoute un compte HORS-LIGNE (pseudo) et le sélectionne.
+ipcMain.handle('account-add-offline', async (_evt, { username }) => {
+  const acc = auth.offlineAccount(username)
+  await accounts.add({ type: 'offline', name: acc.name, uuid: acc.uuid, offline: true })
+  currentAccount = acc
+  return publicAccount(acc)
+})
+
+// Choisit le compte avec lequel on lance Minecraft (affichage immédiat ; le token
+// de jeu sera résolu au lancement).
+ipcMain.handle('account-select', async (_evt, { id }) => {
+  await accounts.select(id)
+  currentAccount = null // le token sera (ré)résolu au prochain lancement
+  return displayAccount(await accounts.getPublic(id))
+})
+
+// Retire un compte. Si c'était l'actif, bascule sur un autre (ou aucun).
+ipcMain.handle('account-remove', async (_evt, { id }) => {
+  const before = (await accounts.list()).selected
+  const { selected } = await accounts.remove(id)
+  if (id === before) {
+    currentAccount = null
+    if (selected) { try { currentAccount = await resolveAccount(selected) } catch (_) {} }
+  }
+  return { selected, current: publicAccount(currentAccount) }
+})
+
+// Annule une connexion Microsoft en cours (navigateur fermé, re-clic…).
+ipcMain.handle('auth-cancel', async () => { auth.cancelLogin(); return true })
 
 // --- Optimisation système : GPU dédié (opt-in, réversible) ---
 ipcMain.handle('gpu-pref-get', async () => {
@@ -637,9 +779,115 @@ ipcMain.handle('gpu-pref-set', async (_evt, { enabled }) => {
   return { enabled }
 })
 
+// Alias id de mod -> slug Modrinth quand ils diffèrent (résolution des dépendances).
+const DEP_ALIAS = {
+  'cloth-config2': 'cloth-config', architectury: 'architectury-api',
+  forgeconfigapiport: 'forge-config-api-port', roughlyenoughitems: 'rei',
+  'fabric-language-kotlin': 'fabric-language-kotlin'
+}
+
+// Garantit les dépendances DÉCLARÉES par les jars présents (lues dans
+// fabric.mod.json / quilt.mod.json). Le launcher « se souvient » ainsi de ce dont
+// chaque mod a besoin : il installe ce qui manque (ex. Cloth Config) et le suit
+// dans le profil actif. Boucle bornée (une dépendance peut en avoir d'autres).
+async function ensureDeclaredDeps(gameVersion, loader, onProgress) {
+  const md = await modsDir()
+  const bl = browserLoader(loader)
+  const added = [] // { pid, fileName, version, slug }
+  for (let pass = 0; pass < 5; pass++) {
+    const missing = scanMissingDeps(md)
+    if (!missing.length) break
+    let progressed = false
+    for (const id of missing) {
+      const slug = DEP_ALIAS[id] || id
+      let dep = null
+      try { dep = await getBestVersion(slug, gameVersion, bl) } catch (_) {}
+      if (!dep) continue // introuvable sur Modrinth sous cet id : on ne peut rien faire
+      try {
+        await downloadFile(dep.downloadUrl, path.join(md, dep.fileName), dep.sha1)
+        added.push({ pid: dep.projectId, fileName: dep.fileName, version: dep.versionNumber, slug })
+        progressed = true
+        if (onProgress) onProgress({ name: dep.fileName })
+      } catch (_) {}
+    }
+    if (!progressed) break // rien de nouveau résolu : on arrête (évite la boucle infinie)
+  }
+  // Mémorise les dépendances ajoutées dans le profil actif (visibles + protégées).
+  if (added.length) {
+    const metas = await getProjectsMeta(added.map(a => a.pid))
+    await updateConfig(cur => {
+      const im = { ...(cur.installedMods || {}) }
+      for (const a of added) {
+        if (im[a.pid]) continue
+        const m = metas[a.pid] || {}
+        im[a.pid] = { slug: m.slug || a.slug, title: m.title || a.slug, icon: m.icon || '', version: a.version || '', files: [a.fileName], autoDep: true }
+      }
+      const profs = { ...(cur.profiles || {}) }
+      const aid = cur.activeProfile
+      if (aid && profs[aid]) profs[aid] = { ...profs[aid], installedMods: im }
+      return { ...cur, installedMods: im, profiles: profs }
+    })
+  }
+  return added.map(a => a.slug)
+}
+
+// Répare les CONFLITS de versions entre mods (pour TOUS les mods) : lit les
+// contraintes déclarées dans les jars, détecte les incompatibilités (ex. Iris
+// exige un vieux Sodium), puis met à jour les mods concernés vers une version
+// compatible (beta autorisée). Identification par HASH -> projet Modrinth, donc
+// marche quel que soit l'id du mod. Boucle bornée. Renvoie { fixed, remaining }.
+async function repairVersionConflicts(gameVersion, loader, onProgress) {
+  if (!FABRIC_LIKE.has(loader)) return { fixed: [], remaining: [] }
+  const md = await modsDir()
+  const bl = browserLoader(loader)
+  const fixed = []
+  for (let pass = 0; pass < 4; pass++) {
+    const { conflicts, involved } = findConflicts(md)
+    if (!conflicts.length) break
+    let progressed = false
+    for (const jarFile of involved) {
+      const jarPath = path.join(md, jarFile)
+      if (!fs.existsSync(jarPath)) continue
+      let pid = null
+      try { const h = await sha1File(jarPath); pid = (await getProjectsByHashes([h]))[h] } catch (_) {}
+      if (!pid) continue // pas identifiable sur Modrinth -> on ne peut pas le corriger
+      let latest = null
+      try { latest = await getBestVersion(pid, gameVersion, bl, { allowBeta: true }) } catch (_) {}
+      if (!latest || latest.fileName === jarFile) continue // déjà à jour / introuvable
+      try {
+        await downloadFile(latest.downloadUrl, path.join(md, latest.fileName), latest.sha1)
+        await fsp.rm(jarPath, { force: true }).catch(() => {})
+        fixed.push({ pid, from: jarFile, to: latest.fileName, version: latest.versionNumber })
+        progressed = true
+        if (onProgress) onProgress({ name: latest.fileName })
+      } catch (_) {}
+    }
+    if (!progressed) break // rien de neuf à mettre à jour -> conflit non réparable auto
+  }
+  // Met à jour le suivi (fichier + version) des mods réparés.
+  if (fixed.length) {
+    await updateConfig(cur => {
+      const im = { ...(cur.installedMods || {}) }
+      for (const f of fixed) if (im[f.pid]) im[f.pid] = { ...im[f.pid], version: f.version, files: [f.to] }
+      const profs = { ...(cur.profiles || {}) }, aid = cur.activeProfile
+      if (aid && profs[aid]) profs[aid] = { ...profs[aid], installedMods: im }
+      return { ...cur, installedMods: im, profiles: profs }
+    })
+  }
+  return { fixed, remaining: findConflicts(md).conflicts }
+}
+
 // --- Lancement du jeu ---
 ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
-  if (!currentAccount) throw new Error('Connecte-toi avec Microsoft avant de jouer.')
+  // Résout le compte (token de jeu) JUSTE À TEMPS : refresh Microsoft depuis le
+  // token stocké, ou compte hors-ligne direct. Startup reste instantané.
+  if (!currentAccount) {
+    const { selected } = await accounts.list()
+    if (!selected) throw new Error('Ajoute un compte Minecraft avant de jouer.')
+    evt.sender.send('prepare-progress', { step: 'Compte', done: 0, total: 1 })
+    try { currentAccount = await resolveAccount(selected) }
+    catch (e) { throw new Error('Connexion au compte impossible : ' + (e.message || e)) }
+  }
   const dir = gameDir()
 
   // Loader du profil ACTIF (Fabric / Quilt / Forge / NeoForge).
@@ -667,6 +915,74 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
       onProgress: (p) => evt.sender.send('prepare-progress', { step: label, phase: p.phase, name: p.name, done: p.done || 0, total: p.total || 1 })
     })
   }
+  // Garantit Fabric API pour les profils Fabric/Quilt : quasi TOUS les mods en ont
+  // besoin, même quand ils ne le déclarent pas (ex. ETF) ou ne le tirent pas (notre
+  // PipouMod). Sans lui, le jeu planterait au démarrage. On l'ajoute au profil actif
+  // s'il manque (Quilt charge aussi Fabric API).
+  if (FABRIC_LIKE.has(loader)) {
+    const md = await modsDir()
+    const present = (await fsp.readdir(md).catch(() => []))
+      .some(f => /fabric[-_]?api|qsl|quilted[-_.]?fabric[-_.]?api|qfapi/i.test(f))
+    if (!present) {
+      try {
+        evt.sender.send('prepare-progress', { step: 'Fabric API', done: 0, total: 1 })
+        const fa = await getBestVersion('fabric-api', gameVersion, browserLoader(loader))
+        if (fa) await downloadFile(fa.downloadUrl, path.join(md, fa.fileName), fa.sha1)
+      } catch (_) { /* réseau indispo : on tente quand même le lancement */ }
+    }
+    // Mods d'OPTIMISATION automatiques : on installe ceux qui MANQUENT (Sodium, Lithium…)
+    // adaptés à ce PC, sans rien supprimer (downloadMods saute ceux déjà présents).
+    // Remplace l'ancien bouton manuel « Installer les mods ».
+    try {
+      evt.sender.send('prepare-progress', { step: "Mods d'optimisation", done: 0, total: 1 })
+      const phw = await getHardware()
+      const pprof = PROFILES[profileId] || pickProfile(phw)
+      const perf = await resolvePerfMods(gameVersion, LOADER, {
+        gpuVendor: gpuVendorFromModel(phw.gpuModel),
+        coreOnly: !!pprof.coreOnly
+      })
+      await downloadMods(perf.resolved, md, (p) => evt.sender.send('prepare-progress', {
+        step: "Mods d'optimisation", name: p.mod ? p.mod.label : '', done: p.done, total: p.total
+      }))
+    } catch (e) { evt.sender.send('game-log', `[launcher] mods d'optimisation : ${e.message}\n`) }
+    // Lit les dépendances DÉCLARÉES par chaque jar et installe ce qui manque
+    // (ex. Cloth Config exigé par un mod). Sans réseau, on tente quand même.
+    try {
+      evt.sender.send('prepare-progress', { step: 'Dépendances', done: 0, total: 1 })
+      await ensureDeclaredDeps(gameVersion, loader,
+        (p) => evt.sender.send('prepare-progress', { step: 'Dépendances', name: p.name, done: 0, total: 1 }))
+    } catch (_) {}
+    // Détecte + répare les CONFLITS de versions entre mods (ex. Iris/Sodium).
+    try {
+      evt.sender.send('prepare-progress', { step: 'Compatibilité', done: 0, total: 1 })
+      const rep = await repairVersionConflicts(gameVersion, loader,
+        (p) => evt.sender.send('prepare-progress', { step: 'Compatibilité', name: p.name, done: 0, total: 1 }))
+      if (rep.fixed.length) evt.sender.send('game-log', `[launcher] ${rep.fixed.length} mod(s) mis à jour pour compatibilité.\n`)
+      if (rep.remaining.length) evt.sender.send('game-log', `[launcher] ⚠ Conflit(s) non réparable(s) : ${rep.remaining.join(' ; ')}\n`)
+    } catch (_) {}
+  }
+  // PipouMod (mod maison) : TOUJOURS actif — on déploie le jar COMPILÉ POUR LA VERSION
+  // du profil (assets/pipoumod-versions/pipoumod-<version>.jar). Fabric/Quilt en direct,
+  // NeoForge via Sinytra Connector. Aucun jar pour cette version -> PipouMod retiré.
+  try {
+    const md = await modsDir()
+    const verJar = path.join(app.getAppPath(), 'assets', 'pipoumod-versions', `pipoumod-${gameVersion}.jar`)
+    const legacy = path.join(app.getAppPath(), 'assets', 'pipoumod.jar') // repli (1.21.1)
+    const src = fs.existsSync(verJar) ? verJar
+      : (gameVersion === '1.21.1' && fs.existsSync(legacy) ? legacy : null)
+    const dst = path.join(md, 'pipoumod.jar')
+    const fabricLike = FABRIC_LIKE.includes(loader)
+    const neoforge = loader === 'neoforge'
+    if (src && (fabricLike || neoforge)) {
+      await fsp.copyFile(src, dst)
+      if (neoforge) {
+        evt.sender.send('prepare-progress', { step: 'PipouMod (Connector)', done: 0, total: 1 })
+        await ensureConnector(md, gameVersion, evt)
+      }
+    } else if (fs.existsSync(dst)) {
+      await fsp.unlink(dst).catch(() => {})
+    }
+  } catch (_) {}
   // Recopie les mods du profil ACTIF dans <gameDir>/mods (vrai dossier que le jeu lit).
   evt.sender.send('prepare-progress', { step: 'Mods', done: 0, total: 1 })
   await profiles.syncToGame(dir)
@@ -693,12 +1009,51 @@ ipcMain.handle('open-mods-dir', async () => {
   return dir
 })
 
+// Une SEULE instance du launcher : si on rouvre (raccourci) alors qu'il tourne déjà,
+// on remet la fenêtre existante au premier plan au lieu d'ouvrir une 2e fenêtre
+// périmée (source de confusion « compte pas connecté »).
+// IMPORTANT : l'instance SECONDAIRE ne doit RIEN faire d'autre que quitter — sinon
+// elle démarre (createWindow, lecture/écriture config) en parallèle de la primaire et
+// crée exactement la course fichier qui "perd" le compte. D'où le garde `isPrimary`.
+const isPrimary = app.requestSingleInstanceLock()
+if (!isPrimary) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+  })
+}
+
 app.whenReady().then(async () => {
-  // Charge l'ID d'application Azure stocké (s'il existe) avant toute auth.
-  try {
-    const cfg = await getConfig()
+  if (!isPrimary) { bootLog('instance SECONDAIRE -> quit sans démarrer'); return }
+
+  // Réinitialise le journal de ce démarrage.
+  try { fs.writeFileSync(bootLogPath(), '') } catch (_) {}
+  bootLog(`whenReady userData=${app.getPath('userData')} name=${app.getName()} isPrimary=${isPrimary}`)
+
+  // AMORÇAGE ROBUSTE DU CACHE CONFIG avant d'ouvrir la fenêtre. CAUSE RACINE du bug
+  // "compte pas affiché au démarrage depuis le raccourci" (confirmée par l'audit) :
+  // au démarrage à FROID, config.json peut être momentanément verrouillé (antivirus
+  // scannant electron.exe fraîchement lancé, OneDrive/Roaming en hydratation). L'ancien
+  // warm-up avalait l'échec SANS réessayer -> le cache mémoire restait vide -> accounts-list
+  // échouait -> compte null. Ici on RÉESSAIE (borné) jusqu'à amorcer le cache, pour que
+  // accounts-list soit ensuite servi depuis la RAM, insensible au verrou disque.
+  let cfg = null
+  for (let i = 0; i < 8 && !cfg; i++) {
+    try { cfg = await getConfig() }
+    catch (e) {
+      bootLog(`warm-up getConfig échec ${i + 1}/8: ${e && e.message}`)
+      await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+  if (cfg) {
     if (cfg.msaClientId) auth.setClientId(cfg.msaClientId)
-  } catch (_) { /* pas de config : on garde l'éventuelle variable d'env */ }
+    const accs = (cfg.accounts || []).map((a) => a.name)
+    bootLog(`config amorcée: accounts=[${accs.join(',')}] selected=${cfg.selectedAccount || 'null'} activeProfile=${cfg.activeProfile || 'null'}`)
+  } else {
+    bootLog('config NON amorcée après 8 essais (disque verrouillé longtemps) — ouverture quand même')
+  }
 
   // Met en place les profils (dossier réel par profil + minecraft/mods réel) avant tout.
   try { await profiles.ensureInitialized(gameDir()) } catch (e) { console.error('profiles init:', e.message) }

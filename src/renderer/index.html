@@ -13,6 +13,18 @@
   <div class="bg-noise"></div>
   <div class="bg-vignette"></div>
 
+  <!-- Écran de chargement au démarrage (logo + « Soyez Pipou » + barre) -->
+  <div class="splash" id="splash">
+    <div class="splash-hearts"><span>💜</span><span>💖</span><span>🩷</span><span>💗</span><span>💕</span></div>
+    <div class="splash-inner">
+      <div class="splash-logo">💜</div>
+      <div class="splash-title">PipouLauncher</div>
+      <div class="splash-tag">Soyez Pipou 💜</div>
+      <div class="splash-bar"><div class="splash-fill" id="splashFill"></div></div>
+      <div class="splash-msg" id="splashMsg">Réveil de Pipou…</div>
+    </div>
+  </div>
+
   <div class="app">
 
     <!-- ===== Barre latérale (navigation) ===== -->
@@ -29,23 +41,36 @@
         <button class="nav-item" data-view="mods">
           <span class="nav-ico">❖</span><span>Mods</span>
         </button>
-        <button class="nav-item" data-view="modules">
-          <span class="nav-ico">♥</span><span>Modules</span>
-        </button>
         <button class="nav-item" data-view="advanced">
           <span class="nav-ico">⚙</span><span>Avancé</span>
         </button>
       </nav>
 
       <div class="side-account" id="accountChip" role="button" tabindex="0"
-           title="Se connecter avec Microsoft">
+           title="Gérer les comptes">
         <div class="avatar" id="avatar">?</div>
         <div class="acct">
-          <div class="acct-name" id="acctName">Se connecter</div>
-          <div class="acct-sub" id="acctSub">Compte Microsoft</div>
+          <div class="acct-name" id="acctName">Ajouter un compte</div>
+          <div class="acct-sub" id="acctSub">Minecraft</div>
         </div>
+        <span class="acct-caret" id="acctCaret">▴</span>
       </div>
     </aside>
+
+    <!-- Panneau des comptes (multi-comptes + sélecteur) -->
+    <div class="account-panel" id="accountPanel" hidden>
+      <div class="ap-head">Comptes Minecraft</div>
+      <div class="ap-list" id="accountsList"></div>
+      <div class="ap-actions">
+        <button class="btn ghost ap-add" id="addMsBtn">＋ Compte Microsoft</button>
+        <div class="ap-offline">
+          <input type="text" id="apOfflineName" spellcheck="false" maxlength="16"
+                 placeholder="Pseudo hors-ligne (3-16)" />
+          <button class="btn ghost ap-add-off" id="addOfflineBtn" title="Ajouter un compte hors-ligne">＋</button>
+        </div>
+      </div>
+      <div class="ap-status muted" id="apStatus"></div>
+    </div>
 
     <!-- ===== Zone principale ===== -->
     <main class="main">
@@ -87,29 +112,8 @@
           </section>
         </div>
 
-        <!-- Mods d'optimisation (déplacés sur l'Accueil pour l'accessibilité) -->
-        <section class="card" id="card-mods" style="margin-top:18px">
-          <h2>Mods d'optimisation</h2>
-          <p class="loader-gate" id="optimLoaderNote" hidden></p>
-          <div class="btn-row">
-            <button class="btn ghost" id="resolveBtn">Vérifier la compatibilité</button>
-            <button class="btn ghost" id="installBtn">⬇ Installer les mods</button>
-            <button class="btn ghost" id="openDirBtn">📁 Dossier</button>
-          </div>
-
-          <div class="dl" id="dl" hidden>
-            <div class="dl-bar"><div class="dl-fill" id="dlFill"></div></div>
-            <div class="dl-text muted" id="dlText"></div>
-          </div>
-
-          <div class="mods" id="mods"></div>
-
-          <p class="note">
-            ⓘ Ces mods optimisent <strong>ton PC</strong> (FPS, ping, freezes).
-            Le lag d'un serveur bondé (TPS) vient du serveur lui-même et ne peut
-            pas être corrigé côté client.
-          </p>
-        </section>
+        <!-- Carte « Mods d'optimisation » retirée : ils sont installés AUTOMATIQUEMENT
+             au lancement (ceux qui manquent), plus besoin d'action manuelle. -->
       </section>
 
       <!-- ===== Vue : Mods ===== -->
@@ -177,24 +181,8 @@
 
       </section>
 
-      <!-- ===== Vue : Modules (mod menu façon Feather) ===== -->
-      <section class="view" id="view-modules">
-        <div class="modules-topbar">
-          <div class="modules-tabs" id="modulesTabs">
-            <button class="mtab active" data-cat="all">Tout</button>
-            <button class="mtab" data-cat="hud">HUD</button>
-            <button class="mtab" data-cat="pvp">PvP</button>
-            <button class="mtab" data-cat="comfort">Confort</button>
-            <button class="mtab" data-cat="visual">Visuel</button>
-            <button class="mtab" data-cat="misc">Divers</button>
-          </div>
-          <input type="text" id="modulesSearch" class="modules-search"
-                 spellcheck="false" placeholder="Rechercher un module…" />
-        </div>
-        <div class="modules-grid" id="modulesGrid">
-          <div class="muted">Chargement du catalogue…</div>
-        </div>
-      </section>
+      <!-- Vue « Modules » retirée : les fonctions client vivent dans le mod menu en
+           jeu (PipouMod, toujours actif). Les mods externes s'installent via « Mods ». -->
 
       <!-- ===== Vue : Avancé ===== -->
       <section class="view" id="view-advanced">
@@ -215,34 +203,8 @@
           </section>
         </div>
 
-        <section class="card" id="card-offline">
-          <h2>Mode hors-ligne</h2>
-          <p class="muted azure-intro">
-            Sans compte Microsoft : joue en <strong>solo</strong> ou sur les
-            serveurs <strong>cracked</strong> (online-mode=false). Entre un pseudo :
-          </p>
-          <div class="azure-row">
-            <input type="text" id="offlineName" spellcheck="false" maxlength="16"
-                   placeholder="Ton pseudo (3-16 caractères)" />
-            <button class="btn ghost" id="offlineBtn">Jouer hors-ligne</button>
-          </div>
-          <div class="muted azure-status" id="offlineStatus"></div>
-        </section>
-
-        <section class="card" id="card-azure">
-          <h2>Connexion Microsoft (Azure)</h2>
-          <p class="muted azure-intro">
-            ✓ Un client_id est <strong>intégré par défaut</strong> : la connexion Microsoft
-            marche sans rien configurer. Ce champ est <strong>optionnel</strong> — seulement
-            si tu veux utiliser ta propre app Azure.
-          </p>
-          <div class="azure-row">
-            <input type="text" id="clientIdInput" spellcheck="false"
-                   placeholder="00000000-0000-0000-0000-000000000000" />
-            <button class="btn ghost" id="saveClientId">Enregistrer</button>
-          </div>
-          <div class="muted azure-status" id="azureStatus"></div>
-        </section>
+        <!-- Cartes « Mode hors-ligne » et « Connexion Azure » retirées : gérées
+             désormais par le panneau multi-comptes (puce compte de la sidebar). -->
 
         <section class="card" id="card-system">
           <h2>Optimisations système</h2>

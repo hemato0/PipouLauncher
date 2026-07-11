@@ -27,30 +27,58 @@ public class PipouHud {
 			// --- Colonne d'infos en haut à gauche ---
 			int y = 4;
 			if (PipouOptions.isEnabled("fps")) {
-				y = line(g, mc, Component.literal(mc.getFps() + " FPS"), y, PINK);
+				g.drawString(mc.font, Component.literal(mc.getFps() + " FPS"), 4, y, PINK, PipouOptions.isEnabled("fps.shadow"));
+				y += 11;
 			}
 			if (PipouOptions.isEnabled("coords")) {
-				String c = String.format("XYZ  %.1f  %.1f  %.1f", mc.player.getX(), mc.player.getY(), mc.player.getZ());
-				y = line(g, mc, Component.literal(c), y, WHITE);
+				y = line(g, mc, Component.literal(String.format("XYZ  %.1f  %.1f  %.1f", mc.player.getX(), mc.player.getY(), mc.player.getZ())), y, WHITE);
+				if (PipouOptions.isEnabled("coords.direction"))
+					y = line(g, mc, Component.literal("Direction : " + mc.player.getDirection().getName()), y, LAV);
+				if (PipouOptions.isEnabled("coords.biome") && mc.level != null)
+					y = line(g, mc, Component.literal("Biome : " + mc.level.getBiome(mc.player.blockPosition()).unwrapKey().map(k -> k.location().getPath()).orElse("?")), y, LAV);
+				if (PipouOptions.isEnabled("coords.day") && mc.level != null)
+					y = line(g, mc, Component.literal("Jour " + (mc.level.getDayTime() / 24000L)), y, LAV);
 			}
-			if (PipouOptions.isEnabled("direction")) {
-				y = line(g, mc, Component.literal("Direction : " + mc.player.getDirection().getName()), y, WHITE);
-			}
-			if (PipouOptions.isEnabled("cps")) {
-				y = line(g, mc, Component.literal("CPS  " + PipouTracker.leftCps() + " | " + PipouTracker.rightCps()), y, PINK);
-			}
-			if (PipouOptions.isEnabled("ping")) {
+			if (PipouOptions.isEnabled("ping"))
 				y = line(g, mc, Component.literal("Ping : " + ping(mc) + " ms"), y, LAV);
-			}
 			if (PipouOptions.isEnabled("clock")) {
-				y = line(g, mc, Component.literal(new SimpleDateFormat("HH:mm").format(new Date())), y, LAV);
+				String fmt = PipouOptions.isEnabled("clock.seconds") ? "HH:mm:ss" : "HH:mm";
+				y = line(g, mc, Component.literal(new SimpleDateFormat(fmt).format(new Date())), y, LAV);
 			}
+			if (PipouOptions.isEnabled("speed")) {
+				var v = mc.player.getDeltaMovement();
+				y = line(g, mc, Component.literal(String.format("Vitesse %.1f b/s", Math.sqrt(v.x * v.x + v.z * v.z) * 20.0)), y, PINK);
+			}
+			if (PipouOptions.isEnabled("memory")) {
+				Runtime rt = Runtime.getRuntime();
+				y = line(g, mc, Component.literal("RAM " + ((rt.totalMemory() - rt.freeMemory()) / 1048576L) + " / " + (rt.maxMemory() / 1048576L) + " Mo"), y, WHITE);
+			}
+			if (PipouOptions.isEnabled("light") && mc.level != null)
+				y = line(g, mc, Component.literal("Lumière : " + mc.level.getMaxLocalRawBrightness(mc.player.blockPosition())), y, WHITE);
+			if (PipouOptions.isEnabled("target"))
+				y = line(g, mc, Component.literal("Visé : " + targetBlock(mc)), y, WHITE);
+			if (PipouOptions.isEnabled("session"))
+				y = line(g, mc, Component.literal("Session : " + sessionTime()), y, LAV);
+			if (PipouOptions.isEnabled("xp"))
+				y = line(g, mc, Component.literal("XP : niveau " + mc.player.experienceLevel), y, WHITE);
+			if (PipouOptions.isEnabled("serverip"))
+				y = line(g, mc, Component.literal("Serveur : " + serverName(mc)), y, LAV);
+			if (PipouOptions.isEnabled("hunger")) {
+				var fd = mc.player.getFoodData();
+				y = line(g, mc, Component.literal(String.format("Faim %d/20  Sat %.1f", fd.getFoodLevel(), fd.getSaturationLevel())), y, WHITE);
+			}
+			if (PipouOptions.isEnabled("cps"))
+				y = line(g, mc, Component.literal("CPS  " + PipouTracker.leftCps() + " | " + PipouTracker.rightCps()), y, PINK);
 
 			// --- Effets de potions (sous la colonne) ---
 			if (PipouOptions.isEnabled("potions")) {
 				y += 4;
 				for (MobEffectInstance eff : mc.player.getActiveEffects()) {
-					String name = eff.getEffect().value().getDisplayName().getString();
+					// getEffect() = Holder<MobEffect> en 1.21, MobEffect direct en 1.20.x.
+				Object h = eff.getEffect();
+				net.minecraft.world.effect.MobEffect me = h instanceof net.minecraft.core.Holder<?> hh
+						? (net.minecraft.world.effect.MobEffect) hh.value() : (net.minecraft.world.effect.MobEffect) h;
+				String name = me.getDisplayName().getString();
 					int lvl = eff.getAmplifier() + 1;
 					y = line(g, mc, Component.literal(name + " " + lvl + "  " + time(eff.getDuration())), y, WHITE);
 				}
@@ -84,14 +112,38 @@ public class PipouHud {
 		return (s / 60) + ":" + String.format("%02d", s % 60);
 	}
 
+	// Début de session (remis à zéro à la connexion, voir PipouModClient).
+	public static long sessionStart = System.currentTimeMillis();
+	private static String sessionTime() {
+		long s = (System.currentTimeMillis() - sessionStart) / 1000L;
+		return String.format("%d:%02d", s / 60, s % 60);
+	}
+
+	private static String targetBlock(Minecraft mc) {
+		if (mc.level != null && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bhr)
+			return mc.level.getBlockState(bhr.getBlockPos()).getBlock().getName().getString();
+		return "—";
+	}
+
+	private static String serverName(Minecraft mc) {
+		var sd = mc.getCurrentServer();
+		return sd != null ? sd.ip : "Solo";
+	}
+
+	// Emplacements d'armure (casque -> bottes) via getItemBySlot : stable sur toutes
+	// les versions (getArmorSlots() a disparu en 1.21.5).
+	private static final net.minecraft.world.entity.EquipmentSlot[] ARMOR = {
+			net.minecraft.world.entity.EquipmentSlot.HEAD,
+			net.minecraft.world.entity.EquipmentSlot.CHEST,
+			net.minecraft.world.entity.EquipmentSlot.LEGS,
+			net.minecraft.world.entity.EquipmentSlot.FEET
+	};
+
 	private static void drawArmor(GuiGraphics g, Minecraft mc) {
 		int x = mc.getWindow().getGuiScaledWidth() - 40;
 		int y = mc.getWindow().getGuiScaledHeight() / 2 - 44;
-		// getArmorSlots() renvoie bottes -> casque : on affiche de haut en bas casque -> bottes.
-		java.util.List<ItemStack> pieces = new java.util.ArrayList<>();
-		for (ItemStack st : mc.player.getArmorSlots()) pieces.add(st);
-		for (int i = pieces.size() - 1; i >= 0; i--) {
-			ItemStack st = pieces.get(i);
+		for (net.minecraft.world.entity.EquipmentSlot slot : ARMOR) {
+			ItemStack st = mc.player.getItemBySlot(slot);
 			if (st.isEmpty()) continue;
 			g.renderItem(st, x, y);
 			if (st.isDamageableItem()) {

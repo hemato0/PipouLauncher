@@ -2,33 +2,54 @@ plugins {
 	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 }
 
+// Version cible paramétrable : ./gradlew build -Pmcver=1.20.1 -Pfapi=<fabric-api>
+def mcver = (project.findProperty('mcver') ?: project.minecraft_version).toString()
+def fapi = (project.findProperty('fapi') ?: project.fabric_api_version).toString()
+
+// Java requis selon la version de Minecraft (1.20.5+/1.21+ = 21, 1.18–1.20.4 = 17, 1.17 = 16, <=1.16 = 8).
+def javaVersionFor = { String mc ->
+	def p = mc.tokenize('.')
+	int minor = p.size() > 1 ? (p[1] as int) : 0
+	int patch = p.size() > 2 ? (p[2] as int) : 0
+	if (minor >= 21) return 21
+	if (minor == 20) return patch >= 5 ? 21 : 17
+	if (minor == 19 || minor == 18) return 17
+	if (minor == 17) return 16
+	return 8
+}
+int javaRel = javaVersionFor(mcver)
+def javaDep = ">=${javaRel}"
+def javaCompat = "JAVA_${javaRel}"
+
 version = project.mod_version
 group = project.maven_group
 
 base {
-	archivesName = 'pipoumod'
+	archivesName = "pipoumod-mc${mcver}"
 }
 
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	minecraft "com.mojang:minecraft:${mcver}"
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${fapi}"
 }
 
 processResources {
-	def version = project.version
-	inputs.property "version", version
-	filesMatching("fabric.mod.json") {
-		expand "version": version
+	inputs.property "version", project.version
+	inputs.property "mcdep", mcver
+	inputs.property "javadep", javaDep
+	inputs.property "javacompat", javaCompat
+	filesMatching(["fabric.mod.json", "pipoumod.mixins.json"]) {
+		expand "version": project.version, "mcdep": mcver, "javadep": javaDep, "javacompat": javaCompat
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = javaRel
 }
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.toVersion(javaRel)
+	targetCompatibility = JavaVersion.toVersion(javaRel)
 }

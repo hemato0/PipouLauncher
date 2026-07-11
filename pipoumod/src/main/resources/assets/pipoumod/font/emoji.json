@@ -1,0 +1,458 @@
+{
+	"providers": [
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f308.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🌈"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f319.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🌙"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f389.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🎉"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f440.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👀"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f44b.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👋"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f44c.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👌"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f44d.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👍"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f44e.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👎"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f44f.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👏"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f451.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👑"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f47b.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"👻"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f480.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💀"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f48e.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💎"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f494.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💔"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f49c.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💜"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f4a9.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💩"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f4aa.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💪"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f4af.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"💯"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f525.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🔥"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f600.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😀"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f602.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😂"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f604.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😄"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f609.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😉"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f60d.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😍"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f60e.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😎"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f618.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😘"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f61b.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😛"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f620.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😠"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f621.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😡"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f622.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😢"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f62d.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😭"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f634.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"😴"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f641.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🙁"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f64f.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🙏"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f680.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🚀"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f6e1.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🛡"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f914.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🤔"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f923.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🤣"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f926.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🤦"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f937.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🤷"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/1f973.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"🥳"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2600.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"☀"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2694.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"⚔"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/26a0.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"⚠"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2705.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"✅"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2728.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"✨"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/274c.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"❌"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2753.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"❓"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2764.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"❤"
+			]
+		},
+		{
+			"type": "bitmap",
+			"file": "pipoumod:font/emoji/2b50.png",
+			"ascent": 7,
+			"height": 8,
+			"chars": [
+				"⭐"
+			]
+		},
+		{
+			"type": "reference",
+			"id": "minecraft:default"
+		}
+	]
+}
