@@ -60,10 +60,10 @@ public class PipouAutoTextScreen extends Screen {
 		g.fill(px, py, px + pw, py + 32, C_HEADER);
 		drawHeart(g, px + 11, py + 10, 2, C_PINK);
 		draw(g, "Auto-texte", px + 26, py + 7, C_PINK, true);
-		draw(g, "touche → envoie le message", px + 26, py + 18, C_MUTED, false);
+		draw(g, "touche -> envoie le message", px + 26, py + 18, C_MUTED, false);
 		boolean hClose = in(mx, my, px + pw - 28, py + 7, 18, 18);
 		g.fill(px + pw - 28, py + 7, px + pw - 10, py + 25, hClose ? 0x66FF5D8F : C_PILL);
-		drawC(g, "✕", px + pw - 19, py + 12, hClose ? 0xFFFFAAAA : C_TEXT);
+		drawC(g, "×", px + pw - 19, py + 12, hClose ? 0xFFFFAAAA : C_TEXT);
 
 		List<PipouOptions.Macro> macros = PipouOptions.macros();
 		int contentH = macros.size() * ROW_H;
@@ -105,13 +105,13 @@ public class PipouAutoTextScreen extends Screen {
 		boolean cap = capturing == i;
 		g.fill(kx, y + 4, kx + kw, y + 20, cap ? 0x44FF7EC9 : C_PILL);
 		border(g, kx, y + 4, kw, 16, cap ? C_PINK : C_PINK_DIM);
-		String kn = cap ? "Appuie sur une touche…" : "Touche : " + keyName(m.key());
+		String kn = cap ? "Appuie sur une touche..." : "Touche : " + keyName(m.key());
 		drawC(g, clip(kn, kw - 6), kx + kw / 2, y + 8, cap ? C_PINK : C_TEXT);
 		// supprimer
 		int dx = px + pw - 50;
 		boolean hDel = in(mx, my, dx, y + 4, 30, 16);
 		g.fill(dx, y + 4, dx + 30, y + 20, hDel ? 0x44FF5D6C : C_PILL);
-		drawC(g, "✕", dx + 15, y + 8, hDel ? C_RED : C_MUTED);
+		drawC(g, "×", dx + 15, y + 8, hDel ? C_RED : C_MUTED);
 	}
 
 	public boolean mouseScrolled(double mxr, double myr, double dx, double dy) {
@@ -176,8 +176,8 @@ public class PipouAutoTextScreen extends Screen {
 	}
 	private String clip(String s, int maxPx) {
 		if (tw(s) <= maxPx) return s;
-		while (s.length() > 1 && tw(s + "…") > maxPx) s = s.substring(0, s.length() - 1);
-		return s + "…";
+		while (s.length() > 1 && tw(s + "...") > maxPx) s = s.substring(0, s.length() - 1);
+		return s + "...";
 	}
 
 	// --- police + helpers ---

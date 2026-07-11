@@ -22,7 +22,7 @@ public class PipouScreen extends Screen {
 
 	private static final String[] TABS = {"Tout", "HUD", "PvP", "Rendu", "Chat", "Tab", "Favoris"};
 
-	private static final int C_OVERLAY = 0xD0120A1E, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
+	private static final int C_OVERLAY = 0xE6120A1E, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
 	private static final int C_CARD = 0xFF221334, C_CARD_HOVER = 0xFF2C1A44, C_PINK = 0xFFFF7EC9;
 	private static final int C_PINK_DIM = 0x55FF7EC9, C_PURPLE = 0xFFA855F7, C_TEXT = 0xFFF7ECFB;
 	private static final int C_MUTED = 0xFFB79FCE, C_GREEN = 0xFF33C270, C_GREY = 0x33FFFFFF;
@@ -106,7 +106,7 @@ public class PipouScreen extends Screen {
 		draw(g, pn, nx, py + 13, C_TEXT, false);
 		boolean hClose = in(mx, my, px + pw - 28, py + 8, 18, 18);
 		g.fill(px + pw - 28, py + 8, px + pw - 10, py + 26, hClose ? 0x66FF5D8F : C_PILL);
-		drawC(g, "✕", px + pw - 19, py + 13, hClose ? 0xFFFFAAAA : C_TEXT);
+		drawC(g, "×", px + pw - 19, py + 13, hClose ? 0xFFFFAAAA : C_TEXT);
 
 		if (settingsOf != null) { renderSettings(g, mx, my); PipouGfx.pop(g); return; }
 
@@ -121,7 +121,7 @@ public class PipouScreen extends Screen {
 		}
 		g.fill(searchX, py + TABS_Y, searchX + searchW, py + TABS_Y + 18, C_DARK);
 		border(g, searchX, py + TABS_Y, searchW, 18, searchFocused ? C_PINK : C_PINK_DIM);
-		String shown = searchQuery.isEmpty() ? "Rechercher…" : searchQuery + (searchFocused ? "_" : "");
+		String shown = searchQuery.isEmpty() ? "Rechercher..." : searchQuery + (searchFocused ? "_" : "");
 		draw(g, shown, searchX + 6, py + TABS_Y + 5, searchQuery.isEmpty() ? C_MUTED : C_TEXT, false);
 
 		List<Module> list = visible();
@@ -173,7 +173,7 @@ public class PipouScreen extends Screen {
 		if (m == null) { settingsOf = null; return; }
 		boolean hBack = in(mx, my, px + 9, py + TABS_Y, 58, 18);
 		g.fill(px + 9, py + TABS_Y, px + 67, py + TABS_Y + 18, hBack ? 0x33FF7EC9 : C_PILL);
-		drawC(g, "← Retour", px + 38, py + TABS_Y + 5, C_TEXT);
+		drawC(g, "« Retour", px + 38, py + TABS_Y + 5, C_TEXT);
 		draw(g, "Paramètres — " + m.label(), px + 78, py + TABS_Y + 5, C_PINK, false);
 
 		g.enableScissor(Math.round((px + 3) * sc), Math.round(gridTop * sc), Math.round((px + pw - 3) * sc), Math.round(gridBottom * sc));
@@ -204,7 +204,7 @@ public class PipouScreen extends Screen {
 		g.fill(px + 12, y, px + pw - 12, y + 22, C_CARD);
 		draw(g, label, px + 20, y + 7, C_TEXT, false);
 		int bx = px + pw - 20 - 96;
-		g.fill(bx, y + 3, bx + 16, y + 19, C_PILL); drawC(g, "−", bx + 8, y + 7, C_TEXT);
+		g.fill(bx, y + 3, bx + 16, y + 19, C_PILL); drawC(g, "-", bx + 8, y + 7, C_TEXT);
 		drawC(g, "x" + (int) val, bx + 48, y + 7, C_PINK);
 		g.fill(bx + 80, y + 3, bx + 96, y + 19, C_PILL); drawC(g, "+", bx + 88, y + 7, C_TEXT);
 		return y + 26;
