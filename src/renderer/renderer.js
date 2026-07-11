@@ -426,13 +426,18 @@ function showCrashModal(data) {
       busy(true); $('crashStatus').textContent = 'Recherche + téléchargement des versions compatibles…'
       try {
         const r = await window.launcher.crashUpdateMods(mods, data.gameVersion)
+        const unchanged = r.unchanged || []
         if (r.done.length) {
-          let s = `✓ ${r.done.map(d => d.name).join(', ')} mis à jour.`
-          if (r.failed.length) s += ` (échec : ${r.failed.map(f => f.slug).join(', ')})`
+          let s = `✓ ${r.done.map(d => d.name).join(', ')} passé(s) en version stable.`
+          if (unchanged.length) s += ` (${unchanged.map(u => u.name).join(', ')} déjà à jour)`
+          if (r.failed.length) s += ` — échec : ${r.failed.map(f => f.slug).join(', ')}`
           $('crashStatus').textContent = s
           showRelaunch()
+        } else if (unchanged.length) {
+          $('crashStatus').textContent = 'Déjà en dernière version stable : la mise à jour ne peut pas résoudre le conflit. Désactive plutôt un des deux mods ci-dessus (le ✕ garde l\'autre).'
+          busy(false)
         } else {
-          $('crashStatus').textContent = 'Aucune mise à jour trouvée — essaie plutôt de désactiver un mod ci-dessus.'
+          $('crashStatus').textContent = 'Aucune version compatible trouvée — désactive plutôt un mod ci-dessus.'
           busy(false)
         }
       } catch (e) { $('crashStatus').textContent = 'Échec : ' + (e && e.message || e); busy(false) }

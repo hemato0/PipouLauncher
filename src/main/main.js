@@ -987,6 +987,24 @@ async function scanModsByModid(dir) {
   return out
 }
 
+// Comme scanModsByModid mais renvoie modid -> [TOUS les fichiers] (pour retirer les
+// doublons + l'ancienne version lors d'une mise à jour).
+async function scanModIdToFiles(dir) {
+  const out = {}
+  let files = []
+  try { files = (await fsp.readdir(dir)).filter(f => f.endsWith('.jar')) } catch (_) { return out }
+  for (const f of files) {
+    try {
+      const zip = new AdmZip(path.join(dir, f))
+      const e = zip.getEntry('fabric.mod.json')
+      if (!e) continue
+      const j = JSON.parse(zip.readAsText(e))
+      if (j && j.id) (out[j.id] = out[j.id] || []).push(f)
+    } catch (_) { /* jar illisible : ignoré */ }
+  }
+  return out
+}
+
 // Après un crash : lit le log de jeu, détecte un conflit de mods connu, enrichit avec
 // les mods réellement installés, et envoie 'game-crash' au renderer.
 async function analyzeAndReportCrash(evt, dir, gameVersion, loader) {
@@ -1049,21 +1067,29 @@ ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
   const { loader } = await activeLoaderInfo()
   const dl = FABRIC_LIKE.has(loader) ? loader : 'fabric'
   const md = await modsDir()
-  const byId = await scanModsByModid(md)
-  const done = [], failed = []
+  const filesByModid = await scanModIdToFiles(md)
+  const done = [], failed = [], unchanged = []
   for (const m of (mods || [])) {
     const slug = m.slug || m.modid
     if (!slug) continue
     try {
-      const best = await getBestVersion(slug, gameVersion, dl, { allowBeta: true })
-      if (!best) { failed.push({ slug, reason: 'aucune version compatible trouvée' }); continue }
+      // Dernier STABLE d'abord : les versions BÊTA sont la cause n°1 des conflits (une
+      // bêta change/retire une API qu'un autre mod attend). On ne prend une bêta que
+      // s'il n'existe AUCUN stable pour cette version de Minecraft.
+      let best = await getBestVersion(slug, gameVersion, dl)
+      if (!best) best = await getBestVersion(slug, gameVersion, dl, { allowBeta: true })
+      if (!best) { failed.push({ slug, reason: 'aucune version compatible' }); continue }
+      const existing = filesByModid[m.modid] || []
+      const already = existing.length === 1 && existing[0] === best.fileName
       await downloadFile(best.downloadUrl, path.join(md, best.fileName), best.sha1)
-      const old = byId[m.modid]
-      if (old && old.file !== best.fileName) await fsp.rm(path.join(md, old.file), { force: true }).catch(() => {})
-      done.push({ slug, name: m.name || slug, to: best.fileName })
+      // Retire TOUS les autres jars de ce mod (ancienne version ET doublons) : sinon la
+      // bêta incompatible resterait à côté du nouveau et le crash persisterait.
+      for (const f of existing) if (f !== best.fileName) await fsp.rm(path.join(md, f), { force: true }).catch(() => {})
+      if (already) unchanged.push({ slug, name: m.name || slug })
+      else done.push({ slug, name: m.name || slug, to: best.fileName })
     } catch (e) { failed.push({ slug, reason: e.message }) }
   }
-  return { done, failed }
+  return { done, failed, unchanged }
 })
 
 // Une SEULE instance du launcher : si on rouvre (raccourci) alors qu'il tourne déjà,
