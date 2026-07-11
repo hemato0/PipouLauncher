@@ -613,7 +613,10 @@ ipcMain.handle('check-update', async (evt) => {
       autoUpdater.on('update-not-available', () => { send({ state: 'none' }); finish({ state: 'none' }) })
       autoUpdater.on('update-available', (i) => { send({ state: 'available', version: i && i.version }); finish({ state: 'updating' }) })
       autoUpdater.on('download-progress', (p) => send({ state: 'downloading', percent: Math.round((p && p.percent) || 0) }))
-      autoUpdater.on('update-downloaded', () => { send({ state: 'installing' }); setTimeout(() => { try { autoUpdater.quitAndInstall() } catch (_) {} }, 1200) })
+      // quitAndInstall(isSilent=true, isForceRunAfter=true) : installe la MAJ EN SILENCE
+      // (flag NSIS /S -> aucune fenêtre du wizard, dont « pour qui installer ») et
+      // relance l'app ensuite. Sans le `true`, l'installeur assisté rouvrirait ses pages.
+      autoUpdater.on('update-downloaded', () => { send({ state: 'installing' }); setTimeout(() => { try { autoUpdater.quitAndInstall(true, true) } catch (_) {} }, 1200) })
       autoUpdater.on('error', (e) => { bootLog('updater: ' + (e && e.message)); send({ state: 'error' }); finish({ state: 'error' }) })
       autoUpdater.checkForUpdates().catch((e) => { bootLog('updater check: ' + (e && e.message)); finish({ state: 'error' }) })
       setTimeout(() => finish({ state: 'timeout' }), 12000) // ne bloque jamais le splash

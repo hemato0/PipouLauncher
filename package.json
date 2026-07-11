@@ -1,6 +1,6 @@
 {
   "name": "perf-launcher",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "PipouLauncher 💜 — launcher Minecraft d'optimisation (rose & violet, cœurs partout).",
   "main": "src/main/main.js",
   "scripts": {
@@ -42,9 +42,9 @@
       "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "PipouLauncher",
