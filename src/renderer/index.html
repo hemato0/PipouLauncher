@@ -262,6 +262,20 @@
     </div>
   </footer>
 
+  <!-- ===== Diagnostic de crash (conflit de mods détecté) ===== -->
+  <div class="crash-overlay" id="crashOverlay" hidden>
+    <div class="crash-modal">
+      <div class="crash-head">
+        <span class="crash-ico">⚠️</span>
+        <h2 id="crashTitle">Le jeu a planté</h2>
+      </div>
+      <p class="crash-msg" id="crashMsg"></p>
+      <div class="crash-actions" id="crashActions"></div>
+      <div class="crash-status muted" id="crashStatus"></div>
+      <button class="crash-close" id="crashClose" title="Fermer">Ignorer</button>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -20,6 +20,8 @@ const { downloadMods, downloadFile, fetchJson } = require('./downloader')
 const { installFabric } = require('./fabric')
 const { installVanilla } = require('./mojang')
 const { parseModpack } = require('./modpack')
+const AdmZip = require('adm-zip')
+const { analyzeCrash } = require('./crashanalyzer')
 const { detectJava } = require('./java')
 const { launch, findModdedProfile } = require('./launch')
 const { installLoader, LOADER_LABEL, FABRIC_LIKE, isValidLoader, latestLoaderVersion } = require('./loaders')
@@ -902,8 +904,91 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
   return await launch(
     { mcVersion: gameVersion, gameDir: dir, account: currentAccount, perfProfile: profile, hw, totalRamMB, ramMB, loader, loaderVersion },
     (line) => evt.sender.send('game-log', line),
-    (code) => evt.sender.send('game-exit', code)
+    (code) => {
+      evt.sender.send('game-exit', code)
+      // Sortie anormale -> on analyse le log pour détecter un conflit de mods et
+      // proposer un correctif à l'utilisateur (non bloquant).
+      if (code && code !== 0) analyzeAndReportCrash(evt, dir, gameVersion, loader)
+    }
   )
+})
+
+// Lit les jars d'un dossier et mappe modid -> { file, name } (via fabric.mod.json).
+async function scanModsByModid(dir) {
+  const out = {}
+  let files = []
+  try { files = (await fsp.readdir(dir)).filter(f => f.endsWith('.jar')) } catch (_) { return out }
+  for (const f of files) {
+    try {
+      const zip = new AdmZip(path.join(dir, f))
+      const e = zip.getEntry('fabric.mod.json')
+      if (!e) continue
+      const j = JSON.parse(zip.readAsText(e))
+      if (j && j.id) out[j.id] = { file: f, name: j.name || j.id }
+    } catch (_) { /* jar illisible : on ignore */ }
+  }
+  return out
+}
+
+// Après un crash : lit le log de jeu, détecte un conflit de mods connu, enrichit avec
+// les mods réellement installés, et envoie 'game-crash' au renderer.
+async function analyzeAndReportCrash(evt, dir, gameVersion, loader) {
+  try {
+    let log = ''
+    try { log = await fsp.readFile(path.join(app.getPath('userData'), 'game-latest.log'), 'utf8') } catch (_) {}
+    if (!/Mixin apply for mod|Incompatible mod set|which is missing/.test(log)) {
+      try { log += '\n' + await fsp.readFile(path.join(dir, 'logs', 'latest.log'), 'utf8') } catch (_) {}
+    }
+    const diag = analyzeCrash(log)
+    if (!diag) return
+    const byId = await scanModsByModid(await modsDir())
+    const enrich = (id) => {
+      if (!id) return null
+      const hit = byId[id]
+      return { modid: id, name: hit ? hit.name : id, file: hit ? hit.file : null, installed: !!hit }
+    }
+    evt.sender.send('game-crash', {
+      kind: diag.kind,
+      culprit: enrich(diag.culpritId),
+      target: enrich(diag.targetId),
+      missingMethod: diag.missingMethod || null,
+      requiredVersion: diag.requiredVersion || null,
+      gameVersion
+    })
+  } catch (_) { /* diagnostic best-effort : jamais bloquant */ }
+}
+
+// Désactive un mod (renomme son jar en .disabled) dans le profil ACTIF (source de
+// vérité ; syncToGame propage au dossier de jeu au prochain lancement).
+ipcMain.handle('crash-disable-mod', async (_e, { file }) => {
+  if (!file || !/\.jar$/i.test(file)) throw new Error('Fichier de mod invalide.')
+  const src = path.join(await modsDir(), path.basename(file))
+  if (!fs.existsSync(src)) throw new Error('Mod introuvable dans le profil actif.')
+  await fsp.rename(src, src + '.disabled')
+  return { disabled: path.basename(file) }
+})
+
+// Met à jour un ou plusieurs mods (par slug/modid) vers leur dernière version
+// compatible avec la version de MC (Modrinth), en remplaçant le jar dans le profil.
+ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
+  const { loader } = await activeLoaderInfo()
+  const dl = FABRIC_LIKE.has(loader) ? loader : 'fabric'
+  const md = await modsDir()
+  const byId = await scanModsByModid(md)
+  const done = [], failed = []
+  for (const m of (mods || [])) {
+    const slug = m.slug || m.modid
+    if (!slug) continue
+    try {
+      const best = await getBestVersion(slug, gameVersion, dl, { allowBeta: true })
+      if (!best) { failed.push({ slug, reason: 'aucune version compatible trouvée' }); continue }
+      await downloadFile(best.downloadUrl, path.join(md, best.fileName), best.sha1)
+      const old = byId[m.modid]
+      if (old && old.file !== best.fileName) await fsp.rm(path.join(md, old.file), { force: true }).catch(() => {})
+      done.push({ slug, name: m.name || slug, to: best.fileName })
+    } catch (e) { failed.push({ slug, reason: e.message }) }
+  }
+  return { done, failed }
 })
 
 // Une SEULE instance du launcher : si on rouvre (raccourci) alors qu'il tourne déjà,

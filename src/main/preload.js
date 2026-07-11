@@ -80,6 +80,15 @@ contextBridge.exposeInMainWorld('launcher', {
     return () => ipcRenderer.removeListener('game-exit', listener)
   },
 
+  // Diagnostic de crash (conflit de mods détecté) + correctifs proposés.
+  onGameCrash: (cb) => {
+    const listener = (_e, data) => cb(data)
+    ipcRenderer.on('game-crash', listener)
+    return () => ipcRenderer.removeListener('game-crash', listener)
+  },
+  crashDisableMod: (file) => ipcRenderer.invoke('crash-disable-mod', { file }),
+  crashUpdateMods: (mods, gameVersion) => ipcRenderer.invoke('crash-update-mods', { mods, gameVersion }),
+
   // Abonnement à la progression de l'installation de Fabric.
   onFabricProgress: (cb) => {
     const listener = (_e, data) => cb(data)

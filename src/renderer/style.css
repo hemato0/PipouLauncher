@@ -605,3 +605,31 @@ select:hover, select:focus { border-color: var(--gold-deep); outline: none; }
   .view.active { animation: none; }
 }
 @media (max-width: 920px) { .cols { grid-template-columns: 1fr; } }
+
+/* ===== Modale de diagnostic de crash (conflit de mods) ===== */
+.crash-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 2, 12, 0.62); backdrop-filter: blur(4px);
+  padding: 24px;
+}
+.crash-overlay[hidden] { display: none; }
+.crash-modal {
+  width: min(560px, 100%);
+  background: var(--panel-solid); border: 1px solid var(--glass-edge);
+  border-left: 4px solid var(--danger);
+  border-radius: 16px; padding: 22px 24px 18px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.55);
+}
+.crash-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.crash-ico { font-size: 26px; line-height: 1; }
+.crash-head h2 { font-size: 18px; font-weight: 800; color: var(--text); margin: 0; }
+.crash-msg { font-size: 14px; line-height: 1.55; color: var(--text); margin: 0 0 18px; }
+.crash-actions { display: flex; flex-direction: column; gap: 9px; }
+.crash-actions .btn { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
+.crash-status { margin-top: 12px; font-size: 12.5px; line-height: 1.5; min-height: 16px; }
+.crash-close {
+  margin-top: 14px; width: 100%; background: none; border: none;
+  color: var(--muted); font-size: 12px; cursor: pointer; padding: 6px;
+}
+.crash-close:hover { color: var(--text); }

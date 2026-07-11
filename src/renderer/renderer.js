@@ -384,6 +384,90 @@ async function launchGame() {
   }
 }
 
+// --- Diagnostic de crash (conflit de mods détecté) ---
+// Affiche une modale expliquant le conflit + propose de corriger (mettre à jour vers
+// des versions compatibles, ou désactiver le mod fautif).
+function showCrashModal(data) {
+  const overlay = $('crashOverlay')
+  if (!overlay || !data) return
+  const c = data.culprit, t = data.target
+  $('crashTitle').textContent = '⚠️ Le jeu a planté — conflit de mods'
+  const actions = $('crashActions')
+  actions.innerHTML = ''
+  $('crashStatus').textContent = ''
+
+  let msg
+  if (data.kind === 'mixin-conflict' && c) {
+    msg = t
+      ? `Le mod « ${c.name} » n'est pas compatible avec la version installée de « ${t.name} » — c'est ce qui a fait planter le jeu.`
+      : `Le mod « ${c.name} » a provoqué le crash (patch incompatible avec un autre mod).`
+  } else if (data.kind === 'missing-dependency' && t) {
+    msg = `Un mod a besoin de « ${t.name} »${data.requiredVersion ? ' (version ' + data.requiredVersion + ')' : ''}, absent ou en mauvaise version.`
+  } else {
+    msg = 'Un conflit de mods a été détecté au lancement.'
+  }
+  $('crashMsg').textContent = msg
+
+  const mods = []
+  if (c && c.installed) mods.push({ modid: c.modid, slug: c.modid, name: c.name })
+  if (t && t.installed && (!c || t.modid !== c.modid)) mods.push({ modid: t.modid, slug: t.modid, name: t.name })
+
+  const addBtn = (label, cls, fn) => {
+    const b = document.createElement('button')
+    b.className = 'btn ' + cls
+    b.textContent = label
+    b.addEventListener('click', fn)
+    actions.appendChild(b)
+  }
+  const busy = (on) => actions.querySelectorAll('button').forEach(b => { b.disabled = on })
+
+  if (mods.length) {
+    addBtn(`🔄 Mettre à jour ${mods.map(m => m.name).join(' + ')} (versions compatibles)`, 'play', async () => {
+      busy(true); $('crashStatus').textContent = 'Recherche + téléchargement des versions compatibles…'
+      try {
+        const r = await window.launcher.crashUpdateMods(mods, data.gameVersion)
+        if (r.done.length) {
+          let s = `✓ ${r.done.map(d => d.name).join(', ')} mis à jour.`
+          if (r.failed.length) s += ` (échec : ${r.failed.map(f => f.slug).join(', ')})`
+          $('crashStatus').textContent = s
+          showRelaunch()
+        } else {
+          $('crashStatus').textContent = 'Aucune mise à jour trouvée — essaie plutôt de désactiver un mod ci-dessus.'
+          busy(false)
+        }
+      } catch (e) { $('crashStatus').textContent = 'Échec : ' + (e && e.message || e); busy(false) }
+    })
+  }
+  if (c && c.installed && c.file) addBtn(`🚫 Désactiver ${c.name}`, 'ghost', () => disableCrashMod(c))
+  if (t && t.installed && t.file && (!c || t.modid !== c.modid)) addBtn(`🚫 Désactiver ${t.name}`, 'ghost', () => disableCrashMod(t))
+
+  overlay.hidden = false
+}
+
+async function disableCrashMod(m) {
+  const actions = $('crashActions')
+  actions.querySelectorAll('button').forEach(b => { b.disabled = true })
+  $('crashStatus').textContent = `Désactivation de ${m.name}…`
+  try {
+    await window.launcher.crashDisableMod(m.file)
+    $('crashStatus').textContent = `✓ ${m.name} désactivé.`
+    showRelaunch()
+  } catch (e) {
+    $('crashStatus').textContent = 'Échec : ' + (e && e.message || e)
+    actions.querySelectorAll('button').forEach(b => { b.disabled = false })
+  }
+}
+
+function showRelaunch() {
+  const actions = $('crashActions')
+  actions.innerHTML = ''
+  const b = document.createElement('button')
+  b.className = 'btn play'
+  b.textContent = '▶ Relancer Minecraft'
+  b.addEventListener('click', () => { $('crashOverlay').hidden = true; launchGame() })
+  actions.appendChild(b)
+}
+
 // Clic sur la puce compte -> ouvre/ferme le panneau des comptes.
 function handleAccountClick() { toggleAccountPanel() }
 
@@ -995,6 +1079,9 @@ async function bootRest(started) {
   $('fabricBtn').addEventListener('click', installFabric)
   $('accountChip').addEventListener('click', handleAccountClick)
   $('playBtn').addEventListener('click', launchGame)
+  // Diagnostic de crash (conflit de mods) : écoute persistante + fermeture de la modale.
+  window.launcher.onGameCrash(showCrashModal)
+  { const cc = $('crashClose'); if (cc) cc.addEventListener('click', () => { $('crashOverlay').hidden = true }) }
   updatePlay()
   setupGpuToggle()
   setupAccountPanel()
