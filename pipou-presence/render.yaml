@@ -1,0 +1,15 @@
+# Déploiement GRATUIT sur Render.com (sans carte bancaire).
+# Deux façons :
+#  A) Dashboard : New → Web Service → choisir le dépôt → Root Directory = "pipou-presence"
+#     → Runtime Node, Build (vide), Start "node server.js", Plan "Free".
+#  B) Blueprint : copier ce fichier à la RACINE du dépôt puis New → Blueprint.
+services:
+  - type: web
+    name: pipou-presence
+    runtime: node
+    plan: free
+    rootDir: pipou-presence
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
