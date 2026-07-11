@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('launcher', {
   setProfileLoader: (id, loader) => ipcRenderer.invoke('set-profile-loader', { id, loader }),
   importModpack: () => ipcRenderer.invoke('import-modpack'),
   refreshProfileIcons: (id) => ipcRenderer.invoke('refresh-profile-icons', { id }),
+  profileModIcons: (id) => ipcRenderer.invoke('profile-mod-icons', { id }),
   onModpackProgress: (cb) => {
     const listener = (_e, data) => cb(data)
     ipcRenderer.on('modpack-progress', listener)

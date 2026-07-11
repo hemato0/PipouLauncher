@@ -284,6 +284,43 @@ ipcMain.handle('profile-detail', async (_e, { id, perfProfileId }) => {
   const effectiveRamMB = d.ram && d.ram.mode === 'manual' && d.ram.mb ? d.ram.mb : autoRamMB
   return { ...d, autoRamMB, effectiveRamMB, totalRamMB: Math.round(hw.totalRamGB * 1024) }
 })
+// Logos de TOUS les mods d'un profil (y compris ceux ajoutés à la main) : on
+// identifie chaque jar par son hash SHA1 -> Modrinth -> icon_url + vrai nom. Résultat
+// { fichier -> {icon, title} }. Cache par (chemin+taille+mtime) : on ne re-hashe pas
+// un jar inchangé. Appelé APRÈS l'affichage du détail (enrichissement asynchrone).
+const folderIconCache = new Map()
+ipcMain.handle('profile-mod-icons', async (_e, { id }) => {
+  const dir = profiles.modsDirFor(gameDir(), id)
+  let files = []
+  try { files = (await fsp.readdir(dir)).filter(f => f.endsWith('.jar')) } catch (_) { return {} }
+  const result = {}
+  const toHash = []
+  for (const f of files) {
+    let key = f
+    try { const st = await fsp.stat(path.join(dir, f)); key = `${f}:${st.size}:${st.mtimeMs}` } catch (_) {}
+    if (folderIconCache.has(key)) { const c = folderIconCache.get(key); if (c) result[f] = c }
+    else toHash.push({ f, key })
+  }
+  const hashToFiles = {}
+  for (const { f, key } of toHash) {
+    try { const h = await sha1File(path.join(dir, f)); (hashToFiles[h] = hashToFiles[h] || []).push({ f, key }) } catch (_) {}
+  }
+  const hashes = Object.keys(hashToFiles)
+  if (hashes.length) {
+    const byHash = await getProjectsByHashes(hashes)
+    const pids = [...new Set(Object.values(byHash))]
+    const meta = pids.length ? await getProjectsMeta(pids) : {}
+    for (const [h, pid] of Object.entries(byHash)) {
+      const md = meta[pid] || {}
+      const entry = { icon: md.icon || '', title: md.title || '' }
+      for (const { f, key } of (hashToFiles[h] || [])) { folderIconCache.set(key, entry); if (entry.icon || entry.title) result[f] = entry }
+    }
+  }
+  // Marque en cache (null) les jars non trouvés sur Modrinth -> pas re-hashés.
+  for (const { key } of toHash) if (!folderIconCache.has(key)) folderIconCache.set(key, null)
+  return result
+})
+
 ipcMain.handle('set-profile-version', async (_e, { id, version }) => profiles.setVersion(gameDir(), id, version))
 ipcMain.handle('set-profile-ram', async (_e, { id, mode, mb }) => profiles.setRam(gameDir(), id, mode, mb))
 
@@ -956,22 +993,40 @@ async function analyzeAndReportCrash(evt, dir, gameVersion, loader) {
   try {
     let log = ''
     try { log = await fsp.readFile(path.join(app.getPath('userData'), 'game-latest.log'), 'utf8') } catch (_) {}
-    if (!/Mixin apply for mod|Incompatible mod set|which is missing/.test(log)) {
+    if (!/Mixin apply for mod|Incompatible mod set|which is missing|ClassNotFoundException|NoClassDefFoundError/.test(log)) {
       try { log += '\n' + await fsp.readFile(path.join(dir, 'logs', 'latest.log'), 'utf8') } catch (_) {}
     }
     const diag = analyzeCrash(log)
     if (!diag) return
     const byId = await scanModsByModid(await modsDir())
+    const byFile = {}
+    for (const [modid, v] of Object.entries(byId)) byFile[v.file] = { modid, name: v.name }
     const enrich = (id) => {
       if (!id) return null
       const hit = byId[id]
       return { modid: id, name: hit ? hit.name : id, file: hit ? hit.file : null, installed: !!hit }
     }
+
+    let culprit
+    if (diag.kind === 'class-conflict') {
+      // Coupable identifié par son JAR (depuis la stack) : on le relie au fichier réel.
+      const hit = byFile[diag.culpritJar]
+      culprit = {
+        modid: hit ? hit.modid : (diag.culpritName || '').toLowerCase().replace(/\s+/g, ''),
+        name: diag.culpritName || diag.culpritJar,
+        file: diag.culpritJar,
+        installed: true
+      }
+    } else {
+      culprit = enrich(diag.culpritId)
+    }
+
     evt.sender.send('game-crash', {
       kind: diag.kind,
-      culprit: enrich(diag.culpritId),
+      culprit,
       target: enrich(diag.targetId),
       missingMethod: diag.missingMethod || null,
+      missingClass: diag.missingClass || null,
       requiredVersion: diag.requiredVersion || null,
       gameVersion
     })

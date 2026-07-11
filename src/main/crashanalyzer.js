@@ -73,7 +73,41 @@ function analyzeCrash(log) {
     }
   }
 
+  // --- 3) Classe manquante tracée à un mod (mod trop vieux/récent vs un autre) ---
+  // Ex : "ClassNotFoundException: net.caffeinemc.mods.sodium…SodiumGameOptions
+  //       at …DistantHorizons…SodiumAccessor… ~[DistantHorizons-3.0.3-…jar:?]"
+  // => DistantHorizons (culprit) référence une API absente de Sodium (target).
+  // On parcourt TOUTES les occurrences (les 1res sont souvent de simples WARN
+  // « Error loading class » sans stack) et on retient celle dont la trace pointe un
+  // jar de MOD -> c'est le vrai coupable au runtime.
+  const cnfRe = /(?:ClassNotFoundException|NoClassDefFoundError):\s*([\w./$]+)/g
+  let m
+  while ((m = cnfRe.exec(log)) !== null) {
+    const after = log.slice(m.index, m.index + 2500)
+    const jars = [...after.matchAll(/~\[([^\]\s]+?\.jar):\?\]/g)].map(x => x[1])
+    const culpritJar = jars.find(j => !/^(fabric-loader|client-intermediary|intermediary|sponge-mixin|mixin|\d)/i.test(j))
+    if (culpritJar) {
+      const missingClass = m[1].replace(/\//g, '.')
+      const target = modFromHint('', missingClass)
+      return {
+        kind: 'class-conflict',
+        culpritJar,
+        culpritName: prettyJar(culpritJar),
+        targetId: target ? target.modid : null,
+        targetName: target ? target.name : null,
+        missingClass
+      }
+    }
+  }
+
   return null
+}
+
+// Nom lisible depuis un nom de jar (retire extension + suffixes version/loader/MC).
+function prettyJar(file) {
+  const n = file.replace(/\.jar$/i, '')
+  const cut = n.replace(/[ _-]+(v?\d+[.\d].*|mc\d.*|fabric.*|forge.*|neoforge.*|quilt.*)$/i, '')
+  return (cut && cut.length >= 2 ? cut : n).replace(/[_-]+/g, ' ').trim()
 }
 
 module.exports = { analyzeCrash }

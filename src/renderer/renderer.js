@@ -397,10 +397,10 @@ function showCrashModal(data) {
   $('crashStatus').textContent = ''
 
   let msg
-  if (data.kind === 'mixin-conflict' && c) {
+  if ((data.kind === 'mixin-conflict' || data.kind === 'class-conflict') && c) {
     msg = t
       ? `Le mod « ${c.name} » n'est pas compatible avec la version installée de « ${t.name} » — c'est ce qui a fait planter le jeu.`
-      : `Le mod « ${c.name} » a provoqué le crash (patch incompatible avec un autre mod).`
+      : `Le mod « ${c.name} » a provoqué le crash (il référence une API absente d'un autre mod).`
   } else if (data.kind === 'missing-dependency' && t) {
     msg = `Un mod a besoin de « ${t.name} »${data.requiredVersion ? ' (version ' + data.requiredVersion + ')' : ''}, absent ou en mauvaise version.`
   } else {
@@ -838,7 +838,7 @@ async function renderProfileDetail(id) {
     const ver = m.version
       ? `<span class="pd-mod-ver">${esc(m.version)}</span>`
       : (m.type === 'module' ? '<span class="pd-mod-ver">module</span>' : '')
-    return `<div class="pd-mod">
+    return `<div class="pd-mod" data-file="${esc(m.file || '')}">
       ${ic}
       <div class="pd-mod-info"><div class="pd-mod-name">${esc(m.name)}</div>${ver}</div>
       <span class="pd-mod-del" data-type="${m.type}" data-id="${esc(m.id)}" title="Retirer">✕</span>
@@ -953,6 +953,25 @@ async function renderProfileDetail(id) {
       await afterProfileChange()
     } catch (e) { setStatus('Retrait : ' + e.message) }
   }))
+
+  // Enrichissement ASYNCHRONE des logos : on identifie chaque jar par son hash sur
+  // Modrinth (marche aussi pour les mods ajoutés à la main) et on remplace l'emoji ❖
+  // par la vraie image + le vrai nom. Non bloquant (les logos apparaissent après).
+  window.launcher.profileModIcons(id).then(icons => {
+    if (!icons) return
+    box.querySelectorAll('.pd-mod[data-file]').forEach(card => {
+      const meta = card.dataset.file && icons[card.dataset.file]
+      if (!meta) return
+      const iconEl = card.querySelector('.pd-mod-icon')
+      if (meta.icon && iconEl && iconEl.tagName !== 'IMG') {
+        const img = document.createElement('img')
+        img.className = 'pd-mod-icon'; img.src = meta.icon; img.loading = 'lazy'; img.alt = ''
+        iconEl.replaceWith(img)
+      }
+      const nameEl = card.querySelector('.pd-mod-name')
+      if (meta.title && nameEl) nameEl.textContent = meta.title
+    })
+  }).catch(() => {})
 
   // La launchbar reflète la RAM effective du profil actif.
   $('footRam').textContent = `${effGB} Go`
