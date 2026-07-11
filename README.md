@@ -9,7 +9,6 @@ lag.
 > the **"associated website"** for the Minecraft app-registration review
 > (https://aka.ms/mce-reviewappid).
 >
-> **Azure Application (client) ID:** `ac86e5e9-c19c-451e-9a6b-4ba3e8e321a0`
 
 ---
 
