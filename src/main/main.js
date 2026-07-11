@@ -828,8 +828,11 @@ async function repairVersionConflicts(gameVersion, loader, onProgress) {
       let pid = null
       try { const h = await sha1File(jarPath); pid = (await getProjectsByHashes([h]))[h] } catch (_) {}
       if (!pid) continue // pas identifiable sur Modrinth -> on ne peut pas le corriger
+      // STABLE d'abord (bêta seulement si aucun stable) : sinon on réinstallait la
+      // dernière BÊTA à chaque lancement -> elle re-cassait la compat -> BOUCLE de crash.
       let latest = null
-      try { latest = await getBestVersion(pid, gameVersion, bl, { allowBeta: true }) } catch (_) {}
+      try { latest = await getBestVersion(pid, gameVersion, bl) } catch (_) {}
+      if (!latest) { try { latest = await getBestVersion(pid, gameVersion, bl, { allowBeta: true }) } catch (_) {} }
       if (!latest || latest.fileName === jarFile) continue // déjà à jour / introuvable
       try {
         await downloadFile(latest.downloadUrl, path.join(md, latest.fileName), latest.sha1)
@@ -1065,8 +1068,16 @@ async function dedupModsFolder(dir, onLog) {
     }
     for (const same of Object.values(byModid)) {
       if (same.length < 2) continue
-      same.sort((a, b) => cmpVer(jarVersion(a), jarVersion(b)))
-      const keep = same[same.length - 1] // version la plus haute
+      // Un STABLE bat une BÊTA même si la bêta a un numéro plus haut (une bêta casse
+      // souvent la compat -> la garder relancerait la boucle de crash). Sinon, version
+      // la plus haute.
+      const isBeta = (f) => /beta|alpha|-rc\d|snapshot|-pre|-dev/i.test(f)
+      same.sort((a, b) => {
+        const ba = isBeta(a), bb = isBeta(b)
+        if (ba !== bb) return ba ? -1 : 1 // le non-bêta finit en dernier (= gardé)
+        return cmpVer(jarVersion(a), jarVersion(b))
+      })
+      const keep = same[same.length - 1]
       for (const f of same) if (f !== keep) {
         await fsp.rm(path.join(dir, f), { force: true }).catch(() => {})
         if (onLog) onLog(`[launcher] doublon retiré : ${f} (gardé : ${keep})\n`)
