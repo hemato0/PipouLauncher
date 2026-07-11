@@ -24,6 +24,24 @@ public class PipouHud {
 			Minecraft mc = Minecraft.getInstance();
 			if (mc.options.hideGui || mc.player == null) return;
 
+			// Échelle du HUD INDÉPENDANTE de la « Taille de l'interface » (GUI Scale) de MC :
+			// le HUD garde une taille CONSTANTE quel que soit le réglage MC. hud.scale = échelle
+			// effective visée (comme un GUI Scale x1..x4) ; facteur appliqué = visée / GUI réel.
+			// Les ancres droite/bas utilisent alors vw/vh = pixels physiques / échelle visée.
+			boolean custom = PipouOptions.isEnabled("hudscale") && mc.getWindow().getGuiScale() > 0;
+			int hs = Math.max(1, (int) PipouOptions.getNum("hud.scale", 2));
+			int vw, vh;
+			if (custom) {
+				float f = hs / (float) mc.getWindow().getGuiScale();
+				PipouGfx.push(g);
+				PipouGfx.scale(g, f, f);
+				vw = Math.round(mc.getWindow().getWidth() / (float) hs);
+				vh = Math.round(mc.getWindow().getHeight() / (float) hs);
+			} else {
+				vw = mc.getWindow().getGuiScaledWidth();
+				vh = mc.getWindow().getGuiScaledHeight();
+			}
+
 			// --- Colonne d'infos en haut à gauche ---
 			int y = 4;
 			if (PipouOptions.isEnabled("fps")) {
@@ -86,13 +104,15 @@ public class PipouHud {
 
 			// --- HUD armure (à droite) ---
 			if (PipouOptions.isEnabled("armor")) {
-				drawArmor(g, mc);
+				drawArmor(g, mc, vw, vh);
 			}
 
 			// --- Keystrokes (bas gauche) ---
 			if (PipouOptions.isEnabled("keystrokes")) {
-				drawKeystrokes(g, mc);
+				drawKeystrokes(g, mc, vh);
 			}
+
+			if (custom) PipouGfx.pop(g);
 		});
 	}
 
@@ -139,9 +159,9 @@ public class PipouHud {
 			net.minecraft.world.entity.EquipmentSlot.FEET
 	};
 
-	private static void drawArmor(GuiGraphics g, Minecraft mc) {
-		int x = mc.getWindow().getGuiScaledWidth() - 40;
-		int y = mc.getWindow().getGuiScaledHeight() / 2 - 44;
+	private static void drawArmor(GuiGraphics g, Minecraft mc, int vw, int vh) {
+		int x = vw - 40;
+		int y = vh / 2 - 44;
 		for (net.minecraft.world.entity.EquipmentSlot slot : ARMOR) {
 			ItemStack st = mc.player.getItemBySlot(slot);
 			if (st.isEmpty()) continue;
@@ -155,9 +175,9 @@ public class PipouHud {
 		}
 	}
 
-	private static void drawKeystrokes(GuiGraphics g, Minecraft mc) {
+	private static void drawKeystrokes(GuiGraphics g, Minecraft mc, int vh) {
 		int bx = 6;
-		int by = mc.getWindow().getGuiScaledHeight() - 92;
+		int by = vh - 92;
 		box(g, mc, bx + 22, by, 20, mc.options.keyUp.isDown(), "W");
 		box(g, mc, bx, by + 22, 20, mc.options.keyLeft.isDown(), "A");
 		box(g, mc, bx + 22, by + 22, 20, mc.options.keyDown.isDown(), "S");

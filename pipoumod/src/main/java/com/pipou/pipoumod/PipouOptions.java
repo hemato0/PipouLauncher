@@ -28,6 +28,7 @@ public final class PipouOptions {
 		DEFAULTS.put("chat.copyscreen", true);
 		DEFAULTS.put("tabbadge", true);
 		DEFAULTS.put("emoji", true);
+		DEFAULTS.put("hudscale", true); // échelle HUD constante (indépendante du GUI Scale MC) d'emblée
 	}
 
 	private static Map<String, Boolean> enabled = new HashMap<>();
