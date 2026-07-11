@@ -87,6 +87,45 @@ function satisfies(vStr, range) {
   return String(range).trim().split(/\s+/).every(p => satisfiesOne(vStr, p)) // AND
 }
 
+// Extrait le cœur X.Y.Z d'un numéro de version Modrinth, en IGNORANT la version MC.
+// Ex. "mc1.21.1-0.6.13-fabric" (gv=1.21.1) -> "0.6.13" ; "1.8.8+1.21.1-fabric" -> "1.8.8".
+// Sert à comparer une version Modrinth à une contrainte façon Fabric (0.6.x, >=…).
+function coreVersion(vn, gameVersion) {
+  const all = String(vn).match(/\d+\.\d+(?:\.\d+)?/g) || []
+  const cand = all.filter(x => x !== gameVersion)
+  return cand[0] || all[0] || '0'
+}
+
+// Contraintes de version qui pèsent sur CHAQUE modid, issues des depends/breaks des
+// mods PRÉSENTS. Ex. si Iris (depends.sodium="0.6.x") est là -> { sodium:{depends:["0.6.x"],breaks:[]} }.
+// -> { [id]: { depends:[range…], breaks:[range…] } }. Sert à ne jamais choisir une
+// version d'un mod que l'un des mods installés refuse (cas Iris ⟷ Sodium).
+function versionConstraints(modsDir) {
+  const jars = readAll(modsDir)
+  const out = {}
+  const add = (id) => (out[id] = out[id] || { depends: [], breaks: [] })
+  for (const { meta } of jars) {
+    for (const [id, range] of Object.entries(meta.depends || {})) {
+      if (isBuiltin(id) || range == null || range === '*') continue
+      add(id).depends.push(range)
+    }
+    for (const [id, range] of Object.entries(meta.breaks || {})) {
+      if (range == null) continue
+      add(id).breaks.push(range)
+    }
+  }
+  return out
+}
+
+// Une version (string "0.6.13") respecte-t-elle TOUTES les contraintes sur ce modid ?
+// (satisfait chaque depends, tombe hors de chaque breaks). true si aucune contrainte.
+function versionAllowed(vStr, cons) {
+  if (!cons) return true
+  for (const r of (cons.depends || [])) if (!satisfies(vStr, r)) return false
+  for (const r of (cons.breaks || [])) if (satisfies(vStr, r)) return false
+  return true
+}
+
 // ---------- Lecture d'un jar ----------
 // { ids:[id+provides], version, depends:{id:range}, breaks:{id:range} } ; null si illisible.
 function readJarMeta(jarPath) {
@@ -179,4 +218,7 @@ function findConflicts(modsDir) {
   return { conflicts, involved: [...involved] }
 }
 
-module.exports = { readJarMeta, scanMissingDeps, findConflicts, satisfies, parseVer, cmp }
+module.exports = {
+  readJarMeta, scanMissingDeps, findConflicts, satisfies, parseVer, cmp,
+  coreVersion, versionConstraints, versionAllowed
+}

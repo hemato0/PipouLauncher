@@ -207,6 +207,26 @@ async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric', opts = {
   return toEntry(v)
 }
 
+// Meilleure version d'un projet qui RESPECTE un prédicat imposé par un AUTRE mod.
+// `allow(versionNumber)` -> booléen (fourni par l'appelant, qui connaît les contraintes
+// depscan). Ex. Iris exige sodium "0.6.x" -> renvoie la plus haute Sodium 0.6.x.
+// Préfère une version STABLE parmi celles qui conviennent, sinon la plus récente qui
+// convient (Modrinth renvoie déjà du plus récent au plus ancien). null si aucune.
+async function getBestVersionMatching(idOrSlug, gameVersion, loader, allow) {
+  const url = `${MODRINTH_API}/project/${idOrSlug}/version`
+    + `?game_versions=${encodeURIComponent(JSON.stringify([gameVersion]))}`
+    + `&loaders=${encodeURIComponent(JSON.stringify([loader]))}`
+  let res
+  try { res = await fetch(url, { headers: HEADERS }) } catch (_) { return null }
+  if (!res.ok) return null
+  const versions = await res.json()
+  if (!Array.isArray(versions) || !versions.length) return null
+  const okv = versions.filter(v => { try { return allow(v.version_number) } catch (_) { return false } })
+  if (!okv.length) return null
+  const stable = okv.find(v => v.version_type === 'release')
+  return toEntry(stable || okv[0])
+}
+
 // Liste TOUTES les versions d'un mod compatibles avec la version MC + le loader
 // (les plus récentes d'abord). Sert au sélecteur « choisir la version du mod ».
 async function listModVersions(idOrSlug, gameVersion, loader = 'fabric') {
@@ -308,6 +328,6 @@ async function resolvePerfMods(gameVersion, loader = 'fabric', opts = {}) {
 }
 
 module.exports = {
-  PERF_MODS, resolvePerfMods, getBestVersion, getVersionById, listModVersions,
+  PERF_MODS, resolvePerfMods, getBestVersion, getBestVersionMatching, getVersionById, listModVersions,
   gpuVendorFromModel, searchMods, getProjectsMeta, getProjectsByHashes, getVersionsByHashes, getCompanions
 }

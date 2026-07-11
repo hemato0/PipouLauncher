@@ -13,7 +13,7 @@ app.setName('perf-launcher')
 
 const { detectHardware, pickProfile, computeRamMB, PROFILES } = require('./hardware')
 const { buildJvmPlan } = require('./jvm')
-const { resolvePerfMods, gpuVendorFromModel, getBestVersion, getVersionById, listModVersions, searchMods, getProjectsMeta, getProjectsByHashes, getVersionsByHashes, getCompanions } = require('./modrinth')
+const { resolvePerfMods, gpuVendorFromModel, getBestVersion, getBestVersionMatching, getVersionById, listModVersions, searchMods, getProjectsMeta, getProjectsByHashes, getVersionsByHashes, getCompanions } = require('./modrinth')
 const crypto = require('crypto')
 const { optionsForProfile } = require('./settings')
 const { downloadMods, downloadFile, fetchJson } = require('./downloader')
@@ -25,7 +25,7 @@ const { analyzeCrash } = require('./crashanalyzer')
 const { detectJava } = require('./java')
 const { launch, findModdedProfile } = require('./launch')
 const { installLoader, LOADER_LABEL, FABRIC_LIKE, isValidLoader, latestLoaderVersion } = require('./loaders')
-const { scanMissingDeps, findConflicts } = require('./depscan')
+const { scanMissingDeps, findConflicts, readJarMeta, versionConstraints, versionAllowed, coreVersion } = require('./depscan')
 const { setGpuPreference, clearGpuPreference, getGpuPreference } = require('./system')
 const { getConfig, setConfig, updateConfig } = require('./config')
 const profiles = require('./profiles')
@@ -818,11 +818,19 @@ async function ensureDeclaredDeps(gameVersion, loader, onProgress) {
   for (let pass = 0; pass < 5; pass++) {
     const missing = scanMissingDeps(md)
     if (!missing.length) break
+    // Contraintes que les mods présents imposent (ex. Iris exige sodium "0.6.x") : une
+    // dépendance manquante DOIT être installée dans une version qui les respecte.
+    const cons = versionConstraints(md)
     let progressed = false
     for (const id of missing) {
       const slug = DEP_ALIAS[id] || id
       let dep = null
-      try { dep = await getBestVersion(slug, gameVersion, bl) } catch (_) {}
+      const c = cons[id]
+      if (c && ((c.depends && c.depends.length) || (c.breaks && c.breaks.length))) {
+        const allow = (vn) => versionAllowed(coreVersion(vn, gameVersion), c)
+        try { dep = await getBestVersionMatching(slug, gameVersion, bl, allow) } catch (_) {}
+      }
+      if (!dep) { try { dep = await getBestVersion(slug, gameVersion, bl) } catch (_) {} }
       if (!dep) continue // introuvable sur Modrinth sous cet id : on ne peut rien faire
       try {
         await downloadFile(dep.downloadUrl, path.join(md, dep.fileName), dep.sha1)
@@ -865,6 +873,9 @@ async function repairVersionConflicts(gameVersion, loader, onProgress) {
   for (let pass = 0; pass < 4; pass++) {
     const { conflicts, involved } = findConflicts(md)
     if (!conflicts.length) break
+    // Contraintes de version pesant sur chaque modid (ex. Iris impose sodium "0.6.x").
+    // Recalculé à chaque passe car les jars changent au fur et à mesure des réparations.
+    const cons = versionConstraints(md)
     let progressed = false
     for (const jarFile of involved) {
       const jarPath = path.join(md, jarFile)
@@ -872,11 +883,23 @@ async function repairVersionConflicts(gameVersion, loader, onProgress) {
       let pid = null
       try { const h = await sha1File(jarPath); pid = (await getProjectsByHashes([h]))[h] } catch (_) {}
       if (!pid) continue // pas identifiable sur Modrinth -> on ne peut pas le corriger
-      // STABLE d'abord (bêta seulement si aucun stable) : sinon on réinstallait la
-      // dernière BÊTA à chaque lancement -> elle re-cassait la compat -> BOUCLE de crash.
+      // Modid du jar (pour savoir quelles contraintes pèsent sur LUI).
+      let modid = null
+      try { const mt = readJarMeta(jarPath); modid = mt && mt.ids && mt.ids[0] } catch (_) {}
+      const c = modid ? cons[modid] : null
       let latest = null
-      try { latest = await getBestVersion(pid, gameVersion, bl) } catch (_) {}
-      if (!latest) { try { latest = await getBestVersion(pid, gameVersion, bl, { allowBeta: true }) } catch (_) {} }
+      if (c && ((c.depends && c.depends.length) || (c.breaks && c.breaks.length))) {
+        // Ce mod est CONTRAINT par un autre (ex. Iris exige sodium 0.6.x) : on choisit la
+        // version la plus haute QUI RESPECTE la contrainte (0.6.13), pas la plus haute tout
+        // court (0.8.12) — sinon on relance la boucle de crash. C'était LE bug Iris⟷Sodium.
+        const allow = (vn) => versionAllowed(coreVersion(vn, gameVersion), c)
+        try { latest = await getBestVersionMatching(pid, gameVersion, bl, allow) } catch (_) {}
+      } else {
+        // Aucun autre mod ne le contraint : STABLE d'abord (bêta seulement si aucun stable),
+        // sinon on réinstallait la dernière BÊTA à chaque lancement -> BOUCLE de crash.
+        try { latest = await getBestVersion(pid, gameVersion, bl) } catch (_) {}
+        if (!latest) { try { latest = await getBestVersion(pid, gameVersion, bl, { allowBeta: true }) } catch (_) {} }
+      }
       if (!latest || latest.fileName === jarFile) continue // déjà à jour / introuvable
       try {
         await downloadFile(latest.downloadUrl, path.join(md, latest.fileName), latest.sha1)
@@ -1102,36 +1125,49 @@ function cmpVer(a, b) { for (let i = 0; i < Math.max(a.length, b.length); i++) {
 async function dedupModsFolder(dir, onLog) {
   let files = []
   try { files = (await fsp.readdir(dir)).filter(f => f.endsWith('.jar')) } catch (_) { return }
+  // Contraintes déclarées par les mods présents (ex. Iris impose sodium "0.6.x") : quand
+  // deux jars du même mod coexistent, on GARDE celui qui respecte la contrainte, même s'il
+  // a un numéro plus bas (Sodium 0.6.13 gardé face à 0.8.12 quand Iris exige 0.6.x). C'était
+  // LE bug de la boucle : les deux Sodium sont "release", donc "le plus haut" cassait Iris.
+  let cons = {}
+  try { cons = versionConstraints(dir) } catch (_) {}
   // 1) Pré-groupage RAPIDE par nom de base (sans ouvrir les jars).
   const groups = {}
   for (const f of files) { const b = jarBaseName(f); (groups[b] = groups[b] || []).push(f) }
   for (const group of Object.values(groups)) {
     if (group.length < 2) continue
-    // 2) Confirmation par MODID (on n'ouvre QUE les jars du groupe suspect) : on ne
-    //    retire que si c'est VRAIMENT le même mod (0 faux positif entre 2 homonymes).
+    // 2) Confirmation par MODID + version DÉCLARÉE (on n'ouvre QUE les jars suspects) : on
+    //    ne retire que si c'est VRAIMENT le même mod (0 faux positif entre 2 homonymes).
     const byModid = {}
     for (const f of group) {
-      let id = '?' + f
+      let id = '?' + f, ver = null
       try {
         const zip = new AdmZip(path.join(dir, f))
         const e = zip.getEntry('fabric.mod.json')
-        if (e) id = JSON.parse(zip.readAsText(e)).id || id
+        if (e) { const j = JSON.parse(zip.readAsText(e)); id = j.id || id; ver = j.version || null }
       } catch (_) {}
-      ;(byModid[id] = byModid[id] || []).push(f)
+      ;(byModid[id] = byModid[id] || []).push({ f, ver })
     }
-    for (const same of Object.values(byModid)) {
+    for (const [modid, same] of Object.entries(byModid)) {
       if (same.length < 2) continue
-      // Un STABLE bat une BÊTA même si la bêta a un numéro plus haut (une bêta casse
-      // souvent la compat -> la garder relancerait la boucle de crash). Sinon, version
-      // la plus haute.
+      const c = cons[modid]
       const isBeta = (f) => /beta|alpha|-rc\d|snapshot|-pre|-dev/i.test(f)
+      const verOf = (x) => x.ver != null ? String(x.ver) : coreVersion(x.f)
       same.sort((a, b) => {
-        const ba = isBeta(a), bb = isBeta(b)
-        if (ba !== bb) return ba ? -1 : 1 // le non-bêta finit en dernier (= gardé)
-        return cmpVer(jarVersion(a), jarVersion(b))
+        // 1) Respecte la contrainte d'un autre mod > ne la respecte pas (priorité absolue :
+        //    on ne garde JAMAIS un Sodium qu'Iris refuse, quel que soit son numéro).
+        if (c) {
+          const oa = versionAllowed(verOf(a), c), ob = versionAllowed(verOf(b), c)
+          if (oa !== ob) return oa ? 1 : -1 // celui qui respecte finit en dernier (= gardé)
+        }
+        // 2) Un STABLE bat une BÊTA même à numéro plus haut (une bêta re-casse la compat).
+        const ba = isBeta(a.f), bb = isBeta(b.f)
+        if (ba !== bb) return ba ? -1 : 1
+        // 3) Sinon, la version la plus haute.
+        return cmpVer(jarVersion(a.f), jarVersion(b.f))
       })
-      const keep = same[same.length - 1]
-      for (const f of same) if (f !== keep) {
+      const keep = same[same.length - 1].f
+      for (const { f } of same) if (f !== keep) {
         await fsp.rm(path.join(dir, f), { force: true }).catch(() => {})
         if (onLog) onLog(`[launcher] doublon retiré : ${f} (gardé : ${keep})\n`)
       }
@@ -1221,6 +1257,10 @@ ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
   const dl = FABRIC_LIKE.has(loader) ? loader : 'fabric'
   const md = await modsDir()
   const filesByModid = await scanModIdToFiles(md)
+  // Contraintes que les mods présents imposent (ex. Iris exige sodium "0.6.x") : on ne
+  // met JAMAIS à jour un mod vers une version qu'un autre mod installé refuse.
+  let cons = {}
+  try { cons = versionConstraints(md) } catch (_) {}
   const done = [], failed = [], unchanged = []
   // Numéro de version lisible extrait d'un nom de fichier (pour l'affichage avant→après).
   const verOf = (name) => { const m = String(name || '').match(/(\d+\.\d+[.\w-]*?)(?:\+| mc|\.jar|$)/i); return m ? m[1] : '' }
@@ -1230,10 +1270,18 @@ ipcMain.handle('crash-update-mods', async (_e, { mods, gameVersion }) => {
     const slug = m.slug || m.modid
     if (!slug) continue
     try {
-      // Dernier STABLE d'abord : les versions BÊTA sont la cause n°1 des conflits (une
-      // bêta change/retire une API qu'un autre mod attend). On ne prend une bêta que
-      // s'il n'existe AUCUN stable pour cette version de Minecraft.
-      let best = await withTimeout(getBestVersion(slug, gameVersion, dl), 15000, 'recherche')
+      let best = null
+      const c = m.modid ? cons[m.modid] : null
+      if (c && ((c.depends && c.depends.length) || (c.breaks && c.breaks.length))) {
+        // Ce mod est CONTRAINT par un autre (ex. Sodium bridé à 0.6.x par Iris) : on prend
+        // la version la plus haute QUI RESPECTE la contrainte (0.6.13), pas la plus haute
+        // tout court (0.8.12) — sinon la « mise à jour » recasse le jeu. C'était le bug.
+        const allow = (vn) => versionAllowed(coreVersion(vn, gameVersion), c)
+        best = await withTimeout(getBestVersionMatching(slug, gameVersion, dl, allow), 15000, 'recherche')
+      }
+      // Sinon : dernier STABLE d'abord (les BÊTA sont la cause n°1 des conflits), bêta en
+      // dernier recours s'il n'existe AUCUN stable pour cette version de Minecraft.
+      if (!best) best = await withTimeout(getBestVersion(slug, gameVersion, dl), 15000, 'recherche')
       if (!best) best = await withTimeout(getBestVersion(slug, gameVersion, dl, { allowBeta: true }), 15000, 'recherche')
       if (!best) { failed.push({ slug, name: m.name || slug, reason: 'introuvable sur Modrinth pour ' + gameVersion }); continue }
       const existing = filesByModid[m.modid] || []
