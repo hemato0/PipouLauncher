@@ -55,7 +55,8 @@
       {
         "provider": "github",
         "owner": "hemato0",
-        "repo": "PipouLauncher"
+        "repo": "PipouLauncher",
+        "releaseType": "release"
       }
     ]
   }
