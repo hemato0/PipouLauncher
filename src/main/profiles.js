@@ -222,6 +222,17 @@ async function setRam(base, id, mode, mb) {
   return { id, ram: profiles[id].ram }
 }
 
+// Active/désactive la gestion AUTOMATIQUE des mods pour un profil. OFF = le launcher
+// ne touche plus aux versions (idéal pour un modpack déjà cohérent).
+async function setManageMods(base, id, value) {
+  const cfg = await getConfig()
+  const profiles = cfg.profiles || {}
+  if (!profiles[id]) throw new Error('Profil introuvable.')
+  profiles[id].manageMods = !!value
+  await setConfig({ profiles })
+  return { id, manageMods: !!value }
+}
+
 // Détail complet d'un profil (pour la vue « instance » type CurseForge).
 // Les mods de l'actif viennent de l'état LIVE ; ceux des autres, de l'archive.
 async function detail(base, id) {
@@ -265,6 +276,7 @@ async function detail(base, id) {
     loader: p.loader || DEFAULT_LOADER,
     loaderVersion: p.loaderVersion || null,
     ram: p.ram || { mode: 'auto' },
+    manageMods: p.manageMods !== false,
     mods
   }
 }
@@ -344,5 +356,5 @@ function overridesDirFor(base, id) { return path.join(profilesRoot(base), id, 'o
 
 module.exports = {
   ensureInitialized, activeModsDir, syncToGame, list, create, switchTo, remove,
-  setVersion, setRam, setLoader, detail, modsDirFor, overridesDirFor
+  setVersion, setRam, setManageMods, setLoader, detail, modsDirFor, overridesDirFor
 }

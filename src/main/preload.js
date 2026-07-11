@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('launcher', {
   profileDetail: (id, perfProfileId) => ipcRenderer.invoke('profile-detail', { id, perfProfileId }),
   setProfileVersion: (id, version) => ipcRenderer.invoke('set-profile-version', { id, version }),
   setProfileRam: (id, mode, mb) => ipcRenderer.invoke('set-profile-ram', { id, mode, mb }),
+  setManageMods: (id, value) => ipcRenderer.invoke('set-manage-mods', { id, value }),
   setProfileLoader: (id, loader) => ipcRenderer.invoke('set-profile-loader', { id, loader }),
   importModpack: () => ipcRenderer.invoke('import-modpack'),
   refreshProfileIcons: (id) => ipcRenderer.invoke('refresh-profile-icons', { id }),

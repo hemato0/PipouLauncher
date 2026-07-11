@@ -323,6 +323,7 @@ ipcMain.handle('profile-mod-icons', async (_e, { id }) => {
 
 ipcMain.handle('set-profile-version', async (_e, { id, version }) => profiles.setVersion(gameDir(), id, version))
 ipcMain.handle('set-profile-ram', async (_e, { id, mode, mb }) => profiles.setRam(gameDir(), id, mode, mb))
+ipcMain.handle('set-manage-mods', async (_e, { id, value }) => profiles.setManageMods(gameDir(), id, value))
 
 // Change le loader d'un profil (résout la dernière version pour Forge/NeoForge).
 ipcMain.handle('set-profile-loader', async (_e, { id, loader }) => {
@@ -487,9 +488,12 @@ ipcMain.handle('import-modpack', async (evt) => {
   evt.sender.send('modpack-progress', { done: total, total, name: 'terminé' })
 
   // Enregistre les mods dans le profil (écriture ATOMIQUE, relit l'état frais).
+  // manageMods=false : un modpack importé est DÉJÀ cohérent (versions accordées entre
+  // elles) -> le launcher ne doit PAS toucher aux versions au lancement (sinon il casse
+  // la compat, ex. Sodium 0.8.12 ⟷ Iris bêta). L'user peut réactiver dans le profil.
   await updateConfig(cur => {
     const profs = cur.profiles || {}
-    if (profs[id]) profs[id].installedMods = installedMods
+    if (profs[id]) { profs[id].installedMods = installedMods; profs[id].manageMods = false }
     return { ...cur, profiles: profs }
   })
 
@@ -875,6 +879,12 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
   const aprof = (acfg.profiles || {})[acfg.activeProfile] || {}
   const loader = aprof.loader || 'fabric'
   const loaderVersion = aprof.loaderVersion || null
+  // « Gérer les mods automatiquement » (défaut ON ; OFF pour les modpacks importés) :
+  // quand OFF, le launcher NE TOUCHE PLUS aux mods (pas d'auto-optim, pas de résolution
+  // de dépendances, pas de réparation de conflits, pas de dédup) -> il lance le profil
+  // TEL QUEL. Indispensable pour un modpack déjà cohérent que nos « corrections »
+  // cassaient (ex. Sodium 0.8.12 ⟷ Iris bêta déjà accordés).
+  const manageMods = aprof.manageMods !== false
 
   // Auto-préparation : Minecraft vanilla installé si absent.
   const verDir = path.join(dir, 'versions', gameVersion)
@@ -899,7 +909,7 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
   // besoin, même quand ils ne le déclarent pas (ex. ETF) ou ne le tirent pas (notre
   // PipouMod). Sans lui, le jeu planterait au démarrage. On l'ajoute au profil actif
   // s'il manque (Quilt charge aussi Fabric API).
-  if (FABRIC_LIKE.has(loader)) {
+  if (FABRIC_LIKE.has(loader) && manageMods) {
     const md = await modsDir()
     const present = (await fsp.readdir(md).catch(() => []))
       .some(f => /fabric[-_]?api|qsl|quilted[-_.]?fabric[-_.]?api|qfapi/i.test(f))
@@ -972,7 +982,7 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
   // Nettoyage des DOUBLONS de mods (2 versions du même mod) AVANT de lancer : Fabric
   // refuse 2 mods de même id -> un doublon = crash garanti. On garde la version la plus
   // haute. Couvre les doublons hérités (modpack + ancien auto-install).
-  try { await dedupModsFolder(await modsDir(), (l) => evt.sender.send('game-log', l)) } catch (_) {}
+  if (manageMods) { try { await dedupModsFolder(await modsDir(), (l) => evt.sender.send('game-log', l)) } catch (_) {} }
 
   // Recopie les mods du profil ACTIF dans <gameDir>/mods (vrai dossier que le jeu lit).
   evt.sender.send('prepare-progress', { step: 'Mods', done: 0, total: 1 })

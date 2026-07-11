@@ -859,6 +859,15 @@ async function renderProfileDetail(id) {
       <div class="pd-title">${esc(d.name)} <span class="pd-badge">actif</span></div>
       <button class="btn ghost pd-icons-btn" id="pdRefreshIcons" title="Récupérer les logos des mods depuis Modrinth">🔄 Logos</button>
     </div>
+    <div class="pd-manage">
+      <label class="switch"><input type="checkbox" id="pdManageMods" ${d.manageMods ? 'checked' : ''} /><span class="slider"></span></label>
+      <div class="pd-manage-txt">
+        <div class="pd-manage-title">Gérer les mods automatiquement</div>
+        <div class="muted pd-manage-hint">${d.manageMods
+          ? 'Le launcher ajoute les mods d\'optimisation manquants, résout les dépendances et répare les conflits de version.'
+          : '⚠ Désactivé : le launcher NE TOUCHE PLUS à tes mods (recommandé pour un modpack déjà cohérent).'}</div>
+      </div>
+    </div>
     <div class="pd-settings">
       <div class="pd-field">
         <label>Loader</label>
@@ -929,6 +938,18 @@ async function renderProfileDetail(id) {
       loadBrowser($('modSearch').value.trim())
       setStatus(`Version de « ${d.name} » : ${verSel.value}.`)
     } catch (e) { setStatus('Version : ' + e.message) }
+  })
+
+  // Interrupteur « gérer les mods automatiquement » (OFF = le launcher n'y touche plus).
+  const mm = $('pdManageMods')
+  mm && mm.addEventListener('change', async () => {
+    try {
+      await window.launcher.setManageMods(id, mm.checked)
+      await renderProfileDetail(id)
+      setStatus(mm.checked
+        ? 'Gestion auto des mods ACTIVÉE.'
+        : 'Gestion auto des mods désactivée — le launcher ne touchera plus à tes mods.')
+    } catch (e) { setStatus('Réglage : ' + e.message) }
   })
 
   // Bascule Auto / Manuel (re-render pour refléter l'état).

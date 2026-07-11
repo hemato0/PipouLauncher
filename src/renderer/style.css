@@ -677,3 +677,13 @@ select option:checked, .pd-select option:checked {
 }
 .ver-badge.beta { background: rgba(255,180,80,.18); color: #ffcf8f; }
 .ver-badge.alpha { background: rgba(255,90,120,.18); color: #ff9db1; }
+
+/* Interrupteur « gérer les mods automatiquement » (vue détail profil) */
+.pd-manage {
+  display: flex; align-items: center; gap: 13px;
+  background: var(--panel-2); border: 1px solid var(--glass-edge); border-radius: 12px;
+  padding: 12px 15px; margin-bottom: 16px;
+}
+.pd-manage-txt { flex: 1; min-width: 0; }
+.pd-manage-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.pd-manage-hint { font-size: 12px; line-height: 1.45; margin-top: 3px; }
