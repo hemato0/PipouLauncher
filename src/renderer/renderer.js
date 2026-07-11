@@ -668,18 +668,30 @@ async function loadBrowser(query) {
 function fmtDl(n) {
   return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n)
 }
+// Version lisible du MOD depuis un numéro Modrinth verbeux :
+// « 0.6.13+mc1.21.1 » -> 0.6.13 ; « mc1.21.1-0.8.12-fabric » -> 0.8.12.
+function cleanVer(v) {
+  let s = String(v || '')
+  if (s.includes('+')) s = s.split('+')[0]                     // "modver+mcver" -> modver
+  s = s.replace(/^mc\d+(\.\d+)+[-_]?/i, '')                    // préfixe "mcX.Y.Z-"
+  s = s.replace(/[-_ ]?(fabric|forge|neoforge|quilt)\b.*$/i, '') // suffixe loader
+  s = s.replace(/^[+\-_ ]+|[+\-_ ]+$/g, '')
+  return s || String(v || '')
+}
 
 function browserCard(m) {
   const icon = m.iconUrl
     ? `<img class="bm-icon" src="${esc(m.iconUrl)}" alt="" />`
     : `<div class="bm-icon bm-noicon">❖</div>`
+  const verTag = m.installed && m.installedVersion
+    ? ` · <span class="bm-ver-tag">v${esc(cleanVer(m.installedVersion))}</span>` : ''
   return `<div class="browser-card" data-pid="${esc(m.projectId)}"
       data-slug="${esc(m.slug)}" data-title="${esc(m.title)}" data-icon="${esc(m.iconUrl || '')}">
     ${icon}
     <div class="bm-info">
       <div class="bm-title">${esc(m.title)}</div>
       <div class="bm-desc">${esc(m.description)}</div>
-      <div class="bm-meta">⬇ ${fmtDl(m.downloads)}</div>
+      <div class="bm-meta">⬇ ${fmtDl(m.downloads)}${verTag}</div>
     </div>
     <div class="bm-cta">
       <button class="bm-btn ${m.installed ? 'on' : ''}">${m.installed ? 'Installé' : 'Installer'}</button>

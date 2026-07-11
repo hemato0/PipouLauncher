@@ -687,3 +687,4 @@ select option:checked, .pd-select option:checked {
 .pd-manage-txt { flex: 1; min-width: 0; }
 .pd-manage-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
 .pd-manage-hint { font-size: 12px; line-height: 1.45; margin-top: 3px; }
+.bm-ver-tag { color: var(--gold-bright); font-family: monospace; font-weight: 700; font-size: 10.5px; }

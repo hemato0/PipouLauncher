@@ -13,7 +13,7 @@ app.setName('perf-launcher')
 
 const { detectHardware, pickProfile, computeRamMB, PROFILES } = require('./hardware')
 const { buildJvmPlan } = require('./jvm')
-const { resolvePerfMods, gpuVendorFromModel, getBestVersion, getVersionById, listModVersions, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions } = require('./modrinth')
+const { resolvePerfMods, gpuVendorFromModel, getBestVersion, getVersionById, listModVersions, searchMods, getProjectsMeta, getProjectsByHashes, getVersionsByHashes, getCompanions } = require('./modrinth')
 const crypto = require('crypto')
 const { optionsForProfile } = require('./settings')
 const { downloadMods, downloadFile, fetchJson } = require('./downloader')
@@ -511,13 +511,53 @@ ipcMain.handle('import-modpack', async (evt) => {
 
 // ---------- GESTIONNAIRE DE MODS (recherche Modrinth) ----------
 
-// Recherche de mods, en marquant ceux déjà installés.
+// Index des mods RÉELLEMENT présents dans le dossier -> { projectId: {version, file} }.
+// Identifie chaque jar par hash SHA1 sur Modrinth (marche pour un jar ajouté à la main /
+// via modpack, pas seulement ceux installés par le launcher). Cache par (chemin+taille+mtime).
+const folderProjectCache = new Map()
+async function folderProjectIndex(md) {
+  let files = []
+  try { files = (await fsp.readdir(md)).filter(f => f.endsWith('.jar')) } catch (_) { return {} }
+  const byProject = {}
+  const toHash = []
+  for (const f of files) {
+    let key = f
+    try { const st = await fsp.stat(path.join(md, f)); key = `${f}:${st.size}:${st.mtimeMs}` } catch (_) {}
+    if (folderProjectCache.has(key)) { const c = folderProjectCache.get(key); if (c) byProject[c.projectId] = { version: c.version, file: f } }
+    else toHash.push({ f, key })
+  }
+  const hashToEntry = {}
+  for (const { f, key } of toHash) {
+    try { hashToEntry[await sha1File(path.join(md, f))] = { f, key } } catch (_) {}
+  }
+  const hashes = Object.keys(hashToEntry)
+  if (hashes.length) {
+    const versByHash = await getVersionsByHashes(hashes)
+    for (const [h, { f, key }] of Object.entries(hashToEntry)) {
+      const v = versByHash[h]
+      if (v) { folderProjectCache.set(key, { projectId: v.projectId, version: v.versionNumber }); byProject[v.projectId] = { version: v.versionNumber, file: f } }
+      else folderProjectCache.set(key, null) // pas sur Modrinth -> plus re-hashé
+    }
+  }
+  return byProject
+}
+
+// Recherche de mods, en marquant ceux RÉELLEMENT présents dans le dossier (+ leur version).
 ipcMain.handle('search-mods', async (_evt, { query, gameVersion }) => {
   const { loader } = await activeLoaderInfo()
   const hits = await searchMods(query, gameVersion, browserLoader(loader))
   const cfg = await getConfig()
-  const installed = cfg.installedMods || {}
-  return hits.map(h => ({ ...h, installed: !!installed[h.projectId] }))
+  const tracked = cfg.installedMods || {}
+  let present = {}
+  try { present = await folderProjectIndex(await modsDir()) } catch (_) {}
+  return hits.map(h => {
+    const inFolder = present[h.projectId]
+    return {
+      ...h,
+      installed: !!tracked[h.projectId] || !!inFolder,
+      installedVersion: inFolder ? inFolder.version : (tracked[h.projectId] ? tracked[h.projectId].version : '')
+    }
+  })
 })
 
 // Installe un mod cherché (+ dépendances) et le mémorise (avec logo + version).

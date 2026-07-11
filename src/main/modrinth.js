@@ -168,6 +168,28 @@ async function getProjectsByHashes(hashes) {
   return out
 }
 
+// Comme getProjectsByHashes mais renvoie AUSSI le numéro de version installé :
+// { [sha1]: { projectId, versionNumber } }. Sert à marquer « installé » + la version
+// dans le gestionnaire, même pour les jars ajoutés à la main / via un modpack.
+async function getVersionsByHashes(hashes) {
+  const out = {}
+  const list = [...new Set((hashes || []).filter(Boolean))]
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100)
+    try {
+      const res = await fetch(`${MODRINTH_API}/version_files`, {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hashes: chunk, algorithm: 'sha1' })
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      for (const [h, v] of Object.entries(data)) if (v && v.project_id) out[h] = { projectId: v.project_id, versionNumber: v.version_number }
+    } catch (_) { /* lot en échec : on continue */ }
+  }
+  return out
+}
+
 // Meilleure version STABLE d'un projet (slug ou id) pour MC+loader. null si aucune.
 async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric', opts = {}) {
   const url = `${MODRINTH_API}/project/${idOrSlug}/version`
@@ -287,5 +309,5 @@ async function resolvePerfMods(gameVersion, loader = 'fabric', opts = {}) {
 
 module.exports = {
   PERF_MODS, resolvePerfMods, getBestVersion, getVersionById, listModVersions,
-  gpuVendorFromModel, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions
+  gpuVendorFromModel, searchMods, getProjectsMeta, getProjectsByHashes, getVersionsByHashes, getCompanions
 }
