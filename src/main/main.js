@@ -918,7 +918,13 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
         gpuVendor: gpuVendorFromModel(phw.gpuModel),
         coreOnly: !!pprof.coreOnly
       })
-      await downloadMods(perf.resolved, md, (p) => evt.sender.send('prepare-progress', {
+      // NE PAS réinstaller un mod d'optim DÉJÀ présent (via le modpack) : sinon on crée
+      // un doublon (2 Sodium, 2 ModernFix…) qui fait planter. On n'ajoute que les MANQUANTS.
+      let present = []
+      try { present = (await fsp.readdir(md)).filter(f => f.endsWith('.jar')) } catch (_) {}
+      const toInstall = []
+      for (const r of perf.resolved) if (!(await isModPresent(md, r.slug, present))) toInstall.push(r)
+      await downloadMods(toInstall, md, (p) => evt.sender.send('prepare-progress', {
         step: "Mods d'optimisation", name: p.mod ? p.mod.label : '', done: p.done, total: p.total
       }))
     } catch (e) { evt.sender.send('game-log', `[launcher] mods d'optimisation : ${e.message}\n`) }
@@ -960,6 +966,11 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
       await fsp.unlink(dst).catch(() => {})
     }
   } catch (_) {}
+  // Nettoyage des DOUBLONS de mods (2 versions du même mod) AVANT de lancer : Fabric
+  // refuse 2 mods de même id -> un doublon = crash garanti. On garde la version la plus
+  // haute. Couvre les doublons hérités (modpack + ancien auto-install).
+  try { await dedupModsFolder(await modsDir(), (l) => evt.sender.send('game-log', l)) } catch (_) {}
+
   // Recopie les mods du profil ACTIF dans <gameDir>/mods (vrai dossier que le jeu lit).
   evt.sender.send('prepare-progress', { step: 'Mods', done: 0, total: 1 })
   await profiles.syncToGame(dir)
@@ -998,6 +1009,70 @@ async function scanModsByModid(dir) {
     } catch (_) { /* jar illisible : on ignore */ }
   }
   return out
+}
+
+// Vrai si un mod (par slug/modid) est DÉJÀ présent dans le dossier. Lecture CIBLÉE :
+// on n'ouvre que les jars dont le nom contient le slug (pas les 143 du pack).
+async function isModPresent(dir, slug, files) {
+  const norm = (s) => String(s || '').toLowerCase().replace(/[-_ ]/g, '')
+  const nslug = norm(slug)
+  if (!nslug) return false
+  for (const f of files) {
+    if (!norm(f).includes(nslug)) continue
+    try {
+      const zip = new AdmZip(path.join(dir, f))
+      const e = zip.getEntry('fabric.mod.json')
+      if (e && norm(JSON.parse(zip.readAsText(e)).id) === nslug) return true
+    } catch (_) { /* jar illisible */ }
+  }
+  return false
+}
+
+// Nom de base d'un jar (sans version/loader/MC) — pour repérer 2 versions du MÊME mod.
+function jarBaseName(file) {
+  const n = file.replace(/\.jar$/i, '')
+  const cut = n.replace(/[ _-]+(v?\d+[.\d].*|mc\d.*|fabric.*|forge.*|neoforge.*|quilt.*|\+.*)$/i, '')
+  return (cut && cut.length >= 2 ? cut : n).toLowerCase().replace(/[ _-]+/g, '')
+}
+// Version numérique extraite du nom (ex. 1.10.5 -> [1,10,5]) pour comparer 2 jars.
+function jarVersion(file) {
+  const m = file.match(/(\d+(?:\.\d+)+)/)
+  return m ? m[1].split('.').map(n => parseInt(n, 10) || 0) : [0]
+}
+function cmpVer(a, b) { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d } return 0 }
+
+// Retire les DOUBLONS de mods (2 jars du même mod) en gardant la version la plus
+// haute. Fabric refuse 2 mods de même id -> un doublon = crash garanti. onLog trace.
+async function dedupModsFolder(dir, onLog) {
+  let files = []
+  try { files = (await fsp.readdir(dir)).filter(f => f.endsWith('.jar')) } catch (_) { return }
+  // 1) Pré-groupage RAPIDE par nom de base (sans ouvrir les jars).
+  const groups = {}
+  for (const f of files) { const b = jarBaseName(f); (groups[b] = groups[b] || []).push(f) }
+  for (const group of Object.values(groups)) {
+    if (group.length < 2) continue
+    // 2) Confirmation par MODID (on n'ouvre QUE les jars du groupe suspect) : on ne
+    //    retire que si c'est VRAIMENT le même mod (0 faux positif entre 2 homonymes).
+    const byModid = {}
+    for (const f of group) {
+      let id = '?' + f
+      try {
+        const zip = new AdmZip(path.join(dir, f))
+        const e = zip.getEntry('fabric.mod.json')
+        if (e) id = JSON.parse(zip.readAsText(e)).id || id
+      } catch (_) {}
+      ;(byModid[id] = byModid[id] || []).push(f)
+    }
+    for (const same of Object.values(byModid)) {
+      if (same.length < 2) continue
+      same.sort((a, b) => cmpVer(jarVersion(a), jarVersion(b)))
+      const keep = same[same.length - 1] // version la plus haute
+      for (const f of same) if (f !== keep) {
+        await fsp.rm(path.join(dir, f), { force: true }).catch(() => {})
+        if (onLog) onLog(`[launcher] doublon retiré : ${f} (gardé : ${keep})\n`)
+      }
+    }
+  }
 }
 
 // Comme scanModsByModid mais renvoie modid -> [TOUS les fichiers] (pour retirer les
