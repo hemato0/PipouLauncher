@@ -107,8 +107,16 @@ public final class PipouOptions {
 				for (Map.Entry<String, Object> e : m.entrySet())
 					enabled.put(e.getKey(), Boolean.TRUE.equals(e.getValue()));
 			}
-		} catch (IOException e) {
-			// Pas encore de fichier : valeurs par défaut.
+		} catch (Exception e) {
+			// Fichier absent, illisible, OU JSON corrompu/tronqué (JsonSyntaxException est
+			// une RuntimeException, pas une IOException) : on retombe PROPREMENT sur les
+			// valeurs par défaut au lieu de laisser l'exception remonter hors de
+			// onInitializeClient -> sinon crash-loop client à chaque démarrage.
+			enabled = new HashMap<>();
+			favorites = new HashMap<>();
+			nums = new HashMap<>();
+			strs = new HashMap<>();
+			macros = new java.util.ArrayList<>();
 		}
 	}
 

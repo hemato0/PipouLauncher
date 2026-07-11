@@ -25,6 +25,15 @@ function isTrustedDownload(u) {
   return ALLOWED_HOST.has(h) || ALLOWED_SUFFIX.some(s => h.endsWith(s))
 }
 
+// Anti « zip-slip » : le .mrpack est un fichier tiers non fiable ; un chemin
+// d'override comme `../../../Startup/evil.bat` écrirait HORS du dossier profil.
+// On refuse tout chemin absolu (posix/windows), lettre de lecteur, ou segment `..`.
+function isSafeRel(rel) {
+  if (typeof rel !== 'string' || !rel) return false
+  if (rel.startsWith('/') || rel.startsWith('\\') || /^[a-zA-Z]:/.test(rel)) return false
+  return !rel.split(/[\\/]+/).some(seg => seg === '..' || seg === '')
+}
+
 // Parse un .mrpack et renvoie tout ce qu'il faut pour créer un profil.
 //   files        : mods à télécharger  { fileName, url, sha1, size }
 //   overrideMods : jars de mods embarqués { fileName, entry }  (entry AdmZip, décompressé à l'écriture)
@@ -79,9 +88,10 @@ function parseModpack(zipPath) {
     if (!m) continue
     const rel = m[1]
     if (/^mods\/.+\.jar$/i.test(rel)) {
-      overrideMods.push({ fileName: path.basename(rel), entry: e })
+      overrideMods.push({ fileName: path.basename(rel), entry: e }) // écrit via basename -> sûr
     } else if (rel.toLowerCase() !== 'options.txt') {
       // options.txt est géré par le launcher (réglages de perf) : on ne l'écrase pas.
+      if (!isSafeRel(rel)) { skipped.push(path.basename(rel) + ' (chemin refusé)'); continue }
       overrideFiles.push({ relPath: rel, entry: e })
     }
   }

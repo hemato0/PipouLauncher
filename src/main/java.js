@@ -56,15 +56,23 @@ async function candidatePaths() {
     } catch (_) { /* dossier absent : on ignore */ }
   }
 
-  // 4) Runtimes Java installés par le launcher Mojang officiel
-  const mojangRuntime = path.join(os.homedir(), 'AppData', 'Local', 'Packages')
+  // 4) Runtimes Java installés par le launcher Mojang officiel (.minecraft/runtime)
   const dotMc = path.join(process.env.APPDATA || os.homedir(), '.minecraft', 'runtime')
-  for (const base of [dotMc, mojangRuntime]) {
-    try {
-      const found = await findJavaUnder(base, 4)
-      for (const f of found) out.add(f)
-    } catch (_) { /* ignore */ }
-  }
+  try {
+    for (const f of await findJavaUnder(dotMc, 5)) out.add(f)
+  } catch (_) { /* ignore */ }
+
+  // 5) Runtime du launcher Minecraft MS-Store : ENFOUI très profond sous le package
+  //    (…\Packages\Microsoft.4297127D64EC6…\LocalCache\Local\runtime\…\bin\java.exe).
+  //    On NE scanne PAS tout l'arbre UWP (lent) : uniquement le(s) package(s) Minecraft.
+  const pkgRoot = path.join(os.homedir(), 'AppData', 'Local', 'Packages')
+  try {
+    for (const pkg of await fsp.readdir(pkgRoot)) {
+      if (!/minecraft|4297127D64EC6/i.test(pkg)) continue
+      const rt = path.join(pkgRoot, pkg, 'LocalCache', 'Local', 'runtime')
+      try { for (const f of await findJavaUnder(rt, 6)) out.add(f) } catch (_) { /* ignore */ }
+    }
+  } catch (_) { /* Packages absent : on ignore */ }
 
   return [...out]
 }
@@ -84,18 +92,37 @@ async function findJavaUnder(dir, depth) {
   return results
 }
 
-// Détecte le meilleur Java disponible. Renvoie { path, version, major } ou null.
-// On privilégie un major >= 21 ; à défaut, le major le plus élevé trouvé.
-async function detectJava() {
+// Liste TOUS les runtimes Java trouvés (mise en cache : le scan disque + les
+// `-version` sont coûteux, et Java ne s'installe pas en cours de session — on ne
+// cache QUE les résultats non vides, pour qu'un Java fraîchement installé soit vu).
+let foundCache = null
+async function findAllJava() {
+  if (foundCache) return foundCache
   const paths = await candidatePaths()
-  const probes = await Promise.all(paths.map(probe))
-  const found = probes.filter(Boolean)
-  if (found.length === 0) return null
+  const found = (await Promise.all(paths.map(probe))).filter(Boolean)
+  if (found.length) foundCache = found
+  return found
+}
 
-  const eligible = found.filter(j => j.major >= 21)
-  const pool = eligible.length ? eligible : found
-  pool.sort((a, b) => b.major - a.major)
-  return pool[0]
+// Détecte le meilleur Java pour la version demandée. `requiredMajor` = major exigé
+// par la version MC (8 pour 1.16, 17 pour 1.17-1.20.4, 21 pour 1.20.5+). On choisit
+// un runtime qui CORRESPOND (le plus haut major crashe les vieilles versions LWJGL).
+// Sans argument : ancien comportement (le plus haut, en privilégiant >= 21).
+async function detectJava(requiredMajor) {
+  const found = await findAllJava()
+  if (found.length === 0) return null
+  if (!requiredMajor) {
+    const eligible = found.filter(j => j.major >= 21)
+    const pool = eligible.length ? eligible : found
+    pool.sort((a, b) => b.major - a.major)
+    return pool[0]
+  }
+  // 1) major EXACT ; 2) le plus PETIT major >= requis ; 3) le plus haut dispo (échouera au garde launch).
+  const exact = found.filter(j => j.major === requiredMajor)
+  if (exact.length) return exact[0]
+  const ge = found.filter(j => j.major >= requiredMajor).sort((a, b) => a.major - b.major)
+  if (ge.length) return ge[0]
+  return [...found].sort((a, b) => b.major - a.major)[0]
 }
 
 module.exports = { detectJava, probe }

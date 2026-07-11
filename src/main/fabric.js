@@ -74,8 +74,10 @@ function libraryDownloads(profile) {
 // Installe Fabric dans gameDir : écrit le profil de version + télécharge les
 // librairies. onProgress({ done, total, name, phase }) est appelé par lib.
 // Retourne un résumé { versionId, loaderVersion, inheritsFrom, libCount, results }.
-async function installFabric(gameVersion, gameDir, onProgress) {
-  const loaderVersion = await getStableLoader(gameVersion)
+async function installFabric(gameVersion, gameDir, onProgress, loaderVersion) {
+  // loaderVersion optionnel : version de loader ÉPINGLÉE (ex. tirée d'un .mrpack) ;
+  // sinon on prend le dernier stable.
+  loaderVersion = loaderVersion || await getStableLoader(gameVersion)
   const profile = await getProfileJson(gameVersion, loaderVersion)
   const versionId = profile.id // ex. "fabric-loader-0.16.9-1.21.1"
 
@@ -100,6 +102,16 @@ async function installFabric(gameVersion, gameDir, onProgress) {
     }
     done++
     if (onProgress) onProgress({ done, total: libs.length, name: lib.name, phase: 'done' })
+  }
+
+  // Échec persistant d'une lib -> on RETIRE le profil déjà écrit et on throw. Sinon
+  // le JSON présent fait croire à un loader « installé » (findModdedProfile le trouve,
+  // la ré-installation est sautée) => classpath incomplet, NoClassDefFoundError durable.
+  const failed = results.filter(r => r.status === 'error')
+  if (failed.length) {
+    await fsp.rm(path.join(verDir, `${versionId}.json`), { force: true }).catch(() => {})
+    const names = failed.slice(0, 4).map(f => f.name).join(', ') + (failed.length > 4 ? '…' : '')
+    throw new Error(`Installation Fabric incomplète : ${failed.length}/${libs.length} librairie(s) en échec (${names}).`)
   }
 
   return {

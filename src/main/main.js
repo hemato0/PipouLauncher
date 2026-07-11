@@ -16,14 +16,13 @@ const { buildJvmPlan } = require('./jvm')
 const { resolvePerfMods, gpuVendorFromModel, getBestVersion, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions } = require('./modrinth')
 const crypto = require('crypto')
 const { optionsForProfile } = require('./settings')
-const { downloadMods, reconcileMods, downloadFile, fetchJson } = require('./downloader')
-const { MODULES, getModule } = require('./modules')
+const { downloadMods, downloadFile, fetchJson } = require('./downloader')
 const { installFabric } = require('./fabric')
 const { installVanilla } = require('./mojang')
 const { parseModpack } = require('./modpack')
 const { detectJava } = require('./java')
 const { launch, findModdedProfile } = require('./launch')
-const { installLoader, LOADER_LABEL, LOADERS, FABRIC_LIKE, isValidLoader, latestLoaderVersion } = require('./loaders')
+const { installLoader, LOADER_LABEL, FABRIC_LIKE, isValidLoader, latestLoaderVersion } = require('./loaders')
 const { scanMissingDeps, findConflicts } = require('./depscan')
 const { setGpuPreference, clearGpuPreference, getGpuPreference } = require('./system')
 const { getConfig, setConfig, updateConfig } = require('./config')
@@ -169,53 +168,24 @@ ipcMain.handle('recompute', async (_evt, { profileId }) => {
   return await buildState(hw, profile)
 })
 
-// Va chercher les mods de perf compatibles avec la version de MC choisie.
-// On filtre selon le GPU (ex. Nvidium NVIDIA-only) et le profil (coreOnly).
-ipcMain.handle('resolve-mods', async (_evt, { gameVersion, profileId }) => {
-  const hw = await getHardware()
-  const profile = PROFILES[profileId] || pickProfile(hw)
-  return await resolvePerfMods(gameVersion, LOADER, {
-    gpuVendor: gpuVendorFromModel(hw.gpuModel),
-    coreOnly: !!profile.coreOnly
-  })
-})
-
-// Résout PUIS télécharge les mods dans le dossier géré, avec vérif SHA1.
-// La progression est poussée au renderer via l'événement 'download-progress'.
-ipcMain.handle('install-mods', async (evt, { gameVersion, profileId }) => {
-  const { loader } = await activeLoaderInfo()
-  if (!FABRIC_LIKE.has(loader)) throw new Error(`Les mods d'optimisation du catalogue sont Fabric/Quilt uniquement (profil actif : ${LOADER_LABEL[loader] || loader}).`)
-  const hw = await getHardware()
-  const profile = PROFILES[profileId] || pickProfile(hw)
-  const resolution = await resolvePerfMods(gameVersion, LOADER, {
-    gpuVendor: gpuVendorFromModel(hw.gpuModel),
-    coreOnly: !!profile.coreOnly
-  })
-
-  const dir = await modsDir()
-  const results = await downloadMods(resolution.resolved, dir, (p) => {
-    evt.sender.send('download-progress', {
-      done: p.done,
-      total: p.total,
-      label: p.mod.label,
-      phase: p.phase,
-      status: p.result ? p.result.status : null
-    })
-  })
-
-  // Nettoie les .jar obsolètes (anciens mods de perf), SANS toucher aux modules.
-  const wanted = [...resolution.resolved.map(m => m.fileName), ...(await moduleFilenames())]
-  const { removed } = await reconcileMods(dir, wanted)
-
-  return { dir, results, removed, unavailable: resolution.unavailable, errored: resolution.errored }
-})
-
-// Liste de TOUTES les versions Minecraft release (depuis le manifest Mojang).
+// Liste des versions Minecraft release proposées. On PLANCHE à 1.20.1 : c'est la
+// borne testée/livrée (PipouMod compilé pour 1.20.1→1.21.8, schéma natives moderne
+// ≥1.19, Java 17/21). En dessous, le lancement vanilla n'est pas garanti (natives
+// ancien schéma, assets « legacy ») — on ne les expose donc pas dans le sélecteur.
+function versionAtLeast(id, min) {
+  const p = s => s.split('.').map(n => parseInt(n, 10) || 0)
+  const a = p(id), b = p(min)
+  for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) }
+  return true
+}
 let versionsCache = null
 ipcMain.handle('list-versions', async () => {
   if (!versionsCache) {
     const manifest = await fetchJson('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')
-    versionsCache = (manifest.versions || []).filter(v => v.type === 'release').map(v => v.id)
+    versionsCache = (manifest.versions || [])
+      .filter(v => v.type === 'release')
+      .map(v => v.id)
+      .filter(id => /^\d+\.\d+(\.\d+)?$/.test(id) && versionAtLeast(id, '1.20.1'))
   }
   return versionsCache
 })
@@ -249,10 +219,10 @@ ipcMain.handle('install-vanilla', async (evt, { gameVersion }) => {
   })
 })
 
-// ---------- MODULES (fonctions type Feather) ----------
+// ---------- RÉSOLUTION D'ITEMS DE MODS (avec dépendances) ----------
 
-// Résout un module + ses dépendances requises (ex. cloth-config) en une liste
-// d'items {fileName, downloadUrl, sha1}.
+// Résout un mod + ses dépendances requises (ex. cloth-config) en une liste
+// d'items {fileName, downloadUrl, sha1}. Utilisé par le gestionnaire de mods.
 async function resolveModuleItems(slug, gameVersion, loader = LOADER) {
   const items = []
   const missing = [] // dépendances REQUISES introuvables (à ne pas avaler en silence)
@@ -275,46 +245,6 @@ async function resolveModuleItems(slug, gameVersion, loader = LOADER) {
   return { items, missing }
 }
 
-// Liste du catalogue + modules déjà activés.
-ipcMain.handle('modules-list', async () => {
-  const cfg = await getConfig()
-  return { modules: MODULES, installed: Object.keys(cfg.modules || {}) }
-})
-
-// Active un module : télécharge son mod (+ dépendances) OU copie le jar maison,
-// puis le mémorise.
-ipcMain.handle('install-module', async (_evt, { id, gameVersion }) => {
-  const mod = getModule(id)
-  if (!mod) throw new Error('Module inconnu.')
-  const { loader } = await activeLoaderInfo()
-  if (!FABRIC_LIKE.has(loader)) throw new Error(`Les modules sont Fabric/Quilt uniquement (profil actif : ${LOADER_LABEL[loader] || loader}).`)
-
-  const dir = await modsDir()
-  await fsp.mkdir(dir, { recursive: true })
-  let files
-
-  if (mod.local) {
-    // Mod maison (PipouMod) : copie le jar embarqué dans l'app.
-    const src = path.join(app.getAppPath(), 'assets', mod.jar)
-    await fsp.copyFile(src, path.join(dir, mod.jar))
-    files = [mod.jar]
-  } else {
-    const { items, missing } = await resolveModuleItems(mod.slug, gameVersion)
-    if (!items.length) throw new Error(`${mod.label} : aucune version compatible ${gameVersion}/Fabric.`)
-    if (missing.length) throw new Error(`${mod.label} : dépendance(s) requise(s) introuvable(s) pour ${gameVersion}/Fabric : ${missing.join(', ')}.`)
-    for (const it of items) {
-      await downloadFile(it.downloadUrl, path.join(dir, it.fileName), it.sha1)
-    }
-    files = items.map(it => it.fileName)
-  }
-
-  const cfg = await getConfig()
-  const modules = cfg.modules || {}
-  modules[id] = { slug: mod.slug || null, files }
-  await setConfig({ modules })
-  return { id, files }
-})
-
 // Désactive un module : supprime ses jars NON partagés avec un autre module.
 ipcMain.handle('remove-module', async (_evt, { id }) => {
   const cfg = await getConfig()
@@ -334,28 +264,9 @@ ipcMain.handle('remove-module', async (_evt, { id }) => {
   return { id }
 })
 
-// Fichiers de tous les modules + mods du gestionnaire (à préserver au nettoyage).
-async function moduleFilenames() {
-  const cfg = await getConfig()
-  return [
-    ...Object.values(cfg.modules || {}).flatMap(m => m.files || []),
-    ...Object.values(cfg.installedMods || {}).flatMap(m => m.files || [])
-  ]
-}
-
 // ---------- PROFILS DE MODS ----------
 ipcMain.handle('profiles-list', async () => profiles.list())
 
-// Mods du profil ACTIF (pour affichage dans l'onglet Mods).
-ipcMain.handle('active-profile-mods', async () => {
-  const cfg = await getConfig()
-  const labels = Object.fromEntries(MODULES.map(m => [m.id, m.label]))
-  const mods = Object.entries(cfg.installedMods || {}).map(([projectId, m]) =>
-    ({ type: 'mod', id: projectId, name: m.title || m.slug }))
-  const mods2 = Object.keys(cfg.modules || {}).map(id =>
-    ({ type: 'module', id, name: labels[id] || id }))
-  return [...mods, ...mods2]
-})
 ipcMain.handle('create-profile', async (_e, { name, opts }) => profiles.create(gameDir(), name, opts || {}))
 ipcMain.handle('switch-profile', async (_e, { id }) => profiles.switchTo(gameDir(), id))
 ipcMain.handle('delete-profile', async (_e, { id }) => profiles.remove(gameDir(), id))
@@ -384,7 +295,6 @@ ipcMain.handle('set-profile-loader', async (_e, { id, loader }) => {
   catch (e) { throw new Error(`${LOADER_LABEL[loader] || loader} : ${e.message}`) }
   return profiles.setLoader(gameDir(), id, loader, loaderVersion)
 })
-ipcMain.handle('loaders-list', async () => ({ loaders: LOADERS, labels: LOADER_LABEL }))
 
 async function sha1File(p) {
   const buf = await fsp.readFile(p)
@@ -521,10 +431,14 @@ ipcMain.handle('import-modpack', async (evt) => {
   // 3) Autres overrides (config, resourcepacks…) -> dossier overrides du profil,
   //    appliqués sur le jeu au lancement (syncToGame).
   const ovDir = profiles.overridesDirFor(base, id)
+  const ovRoot = path.resolve(ovDir)
   for (const of of pack.overrideFiles) {
     step(of.relPath)
     try {
-      const dest = path.join(ovDir, of.relPath)
+      const dest = path.resolve(ovDir, of.relPath)
+      // Défense en profondeur anti zip-slip : la destination DOIT rester sous ovDir
+      // (parseModpack filtre déjà les `..`, mais on revérifie ici avant d'écrire).
+      if (dest !== ovRoot && !dest.startsWith(ovRoot + path.sep)) continue
       await fsp.mkdir(path.dirname(dest), { recursive: true })
       await fsp.writeFile(dest, of.entry.getData())
     } catch (_) {}
@@ -589,41 +503,48 @@ ipcMain.handle('install-searched-mod', async (_evt, { projectId, slug, title, ic
   // Logo + vrai nom Modrinth pour chaque mod lié (le principal garde ceux de la recherche).
   const metas = await getProjectsMeta(uniq.filter(it => it.projectId !== projectId).map(it => it.projectId))
 
-  const cfg = await getConfig()
-  const installedMods = cfg.installedMods || {}
-  const added = []
-  for (const it of uniq) {
-    const isMain = it.projectId === projectId
-    const m = metas[it.projectId] || {}
-    // Chaque mod (principal + dépendances + compagnons) = une entrée VISIBLE à part.
-    installedMods[it.projectId] = {
-      slug: isMain ? slug : (m.slug || it.slug),
-      title: isMain ? title : (m.title || it.slug),
-      icon: isMain ? (iconUrl || '') : (m.icon || ''),
-      version: it.versionNumber || '',
-      files: [it.fileName]
+  const added = uniq.filter(it => it.projectId !== projectId)
+    .map(it => (metas[it.projectId] || {}).title || it.slug)
+  // Mutation ATOMIQUE : on lit/écrit installedMods DANS updateConfig pour ne pas
+  // écraser un ajout concurrent (ensureDeclaredDeps/reconcile au lancement) — un
+  // setConfig depuis un snapshot périmé perdrait l'entrée (jar sur disque non suivi).
+  await updateConfig(cur => {
+    const installedMods = { ...(cur.installedMods || {}) }
+    for (const it of uniq) {
+      const isMain = it.projectId === projectId
+      const m = metas[it.projectId] || {}
+      // Chaque mod (principal + dépendances + compagnons) = une entrée VISIBLE à part.
+      installedMods[it.projectId] = {
+        slug: isMain ? slug : (m.slug || it.slug),
+        title: isMain ? title : (m.title || it.slug),
+        icon: isMain ? (iconUrl || '') : (m.icon || ''),
+        version: it.versionNumber || '',
+        files: [it.fileName]
+      }
     }
-    if (!isMain) added.push(m.title || it.slug)
-  }
-  await setConfig({ installedMods })
+    return { ...cur, installedMods }
+  })
   return { projectId, added }
 })
 
 // Retire un mod du gestionnaire (jars non partagés).
 ipcMain.handle('remove-searched-mod', async (_evt, { projectId }) => {
   const cfg = await getConfig()
-  const installedMods = cfg.installedMods || {}
-  const entry = installedMods[projectId]
+  const entry = (cfg.installedMods || {})[projectId]
   if (entry) {
     const dir = await modsDir()
-    const others = new Set(
-      Object.entries(installedMods).filter(([k]) => k !== projectId).flatMap(([, m]) => m.files || [])
-    )
+    // Retire l'entrée de façon ATOMIQUE (relit l'état frais dans le mutator).
+    await updateConfig(cur => {
+      const installedMods = { ...(cur.installedMods || {}) }
+      delete installedMods[projectId]
+      return { ...cur, installedMods }
+    })
+    // Supprime les jars devenus orphelins (non partagés), calculé sur l'état À JOUR.
+    const after = await getConfig()
+    const others = new Set(Object.values(after.installedMods || {}).flatMap(m => m.files || []))
     for (const f of entry.files || []) {
       if (!others.has(f)) await fsp.rm(path.join(dir, f), { force: true }).catch(() => {})
     }
-    delete installedMods[projectId]
-    await setConfig({ installedMods })
   }
   return { projectId }
 })
@@ -638,21 +559,6 @@ ipcMain.handle('install-fabric', async (evt, { gameVersion }) => {
   })
 })
 
-// --- Configuration : ID d'application Azure (client_id) ---
-ipcMain.handle('get-client-id', async () => {
-  const cfg = await getConfig()
-  return {
-    clientId: cfg.msaClientId || '',
-    fromEnv: !!process.env.MSA_CLIENT_ID,
-    ready: auth.hasClientId()
-  }
-})
-ipcMain.handle('set-client-id', async (_evt, { clientId }) => {
-  await setConfig({ msaClientId: clientId || '' })
-  auth.setClientId(clientId)
-  return { ready: auth.hasClientId() }
-})
-
 // --- Comptes Minecraft (multi-comptes, persistants, avec sélecteur) ---
 
 // Résout un compte (par id) en compte JOUABLE (avec accessToken frais).
@@ -663,7 +569,17 @@ async function resolveAccount(id) {
   if (pub.offline) return auth.offlineAccount(pub.name)
   const rt = await accounts.getSecret(id)
   if (!rt) throw new Error('Session Microsoft absente — reconnecte ce compte.')
-  const acc = await auth.refreshAccount(rt)
+  let acc
+  try {
+    acc = await auth.refreshAccount(rt)
+  } catch (e) {
+    // Persiste le refresh token pivoté même si la chaîne a échoué APRÈS le refresh MS
+    // (sinon on garde un RT périmé et on force une reconnexion pour rien).
+    if (e && e.rotatedRefreshToken && e.rotatedRefreshToken !== rt) {
+      await accounts.updateSecret(id, e.rotatedRefreshToken).catch(() => {})
+    }
+    throw e
+  }
   await accounts.updateSecret(id, acc.refreshToken) // rotation du token
   return acc
 }
@@ -719,14 +635,6 @@ ipcMain.handle('accounts-list', async () => {
   }
 })
 
-// Reconnexion au démarrage : renvoie le compte en CACHE tout de suite (le token de
-// jeu est (ré)résolu plus tard, au lancement — voir launch-game).
-ipcMain.handle('accounts-restore', async () => {
-  if (currentAccount) return { account: publicAccount(currentAccount) }
-  const { selected } = await accounts.list()
-  return { account: displayAccount(await accounts.getPublic(selected)) }
-})
-
 // Ajoute un compte Microsoft (ouvre le navigateur) et le sélectionne.
 ipcMain.handle('account-add-microsoft', async () => {
   const acc = await auth.login({ openUrl: (url) => shell.openExternal(url) })
@@ -761,9 +669,6 @@ ipcMain.handle('account-remove', async (_evt, { id }) => {
   }
   return { selected, current: publicAccount(currentAccount) }
 })
-
-// Annule une connexion Microsoft en cours (navigateur fermé, re-clic…).
-ipcMain.handle('auth-cancel', async () => { auth.cancelLogin(); return true })
 
 // --- Optimisation système : GPU dédié (opt-in, réversible) ---
 ipcMain.handle('gpu-pref-get', async () => {
@@ -971,7 +876,7 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
     const src = fs.existsSync(verJar) ? verJar
       : (gameVersion === '1.21.1' && fs.existsSync(legacy) ? legacy : null)
     const dst = path.join(md, 'pipoumod.jar')
-    const fabricLike = FABRIC_LIKE.includes(loader)
+    const fabricLike = FABRIC_LIKE.has(loader)
     const neoforge = loader === 'neoforge'
     if (src && (fabricLike || neoforge)) {
       await fsp.copyFile(src, dst)
@@ -999,14 +904,6 @@ ipcMain.handle('launch-game', async (evt, { gameVersion, profileId }) => {
     (line) => evt.sender.send('game-log', line),
     (code) => evt.sender.send('game-exit', code)
   )
-})
-
-// Ouvre le dossier des mods dans l'explorateur (le crée au besoin).
-ipcMain.handle('open-mods-dir', async () => {
-  const dir = await modsDir()
-  await fsp.mkdir(dir, { recursive: true })
-  shell.openPath(dir)
-  return dir
 })
 
 // Une SEULE instance du launcher : si on rouvre (raccourci) alors qu'il tourne déjà,

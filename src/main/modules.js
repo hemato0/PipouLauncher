@@ -70,14 +70,6 @@ const MODULES = [
     description: 'Conseils affichés sur les écrans de chargement.', serverNote: '' }
 ]
 
-const CATEGORY_LABELS = {
-  hud: 'HUD / Infos',
-  pvp: 'PvP',
-  comfort: 'Confort',
-  visual: 'Visuel',
-  misc: 'Divers'
-}
-
 function getModule(id) { return MODULES.find(m => m.id === id) || null }
 
-module.exports = { MODULES, CATEGORY_LABELS, getModule }
+module.exports = { MODULES, getModule }

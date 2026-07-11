@@ -27,9 +27,10 @@ public final class PipouScreenshot {
 	public static volatile File lastFile = null;
 	private static final Pattern PNG = Pattern.compile("(\\S+\\.png)");
 
-	/** Enveloppe le consumer du message de capture : mémorise le fichier (branché par ScreenshotMixin). */
+	/** Enveloppe le consumer du message de capture : mémorise le fichier (branché par ScreenshotMixin).
+	 *  On mémorise TOUJOURS (indépendamment des toggles) pour que la touche « copier la
+	 *  dernière capture » ne soit jamais silencieusement inopérante. */
 	public static Consumer<Component> wrap(Consumer<Component> original) {
-		if (!(PipouOptions.isEnabled("chat") && PipouOptions.isEnabled("chat.copyscreen"))) return original;
 		return (msg) -> {
 			try {
 				Matcher m = PNG.matcher(msg.getString());

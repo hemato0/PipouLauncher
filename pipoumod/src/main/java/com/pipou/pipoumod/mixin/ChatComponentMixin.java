@@ -45,12 +45,17 @@ public class ChatComponentMixin {
 		Component decorated = ts ? PipouChat.withTimestamp(base) : base;
 		String key = component.getString(); // clé BRUTE (ni horodatage ni compteur)
 
-		// Doublon consécutif : on empile sur le dernier message (compteur), pas de nouvelle ligne.
-		if (stack && key.equals(PipouChat.lastKey) && !this.allMessages.isEmpty()) {
+		// Doublon consécutif : on empile sur le dernier message (compteur), pas de nouvelle
+		// ligne. Garde d'identité : la ligne [0] DOIT être exactement celle qu'on a ajoutée
+		// en dernier (lastAdded) — sinon un lastKey périmé (toggle stacking, autre serveur)
+		// écraserait une ligne de chat sans rapport dont le texte coïncide par hasard.
+		if (stack && key.equals(PipouChat.lastKey) && !this.allMessages.isEmpty()
+				&& this.allMessages.get(0).content() == PipouChat.lastAdded) {
 			PipouChat.lastCount++;
 			Component counted = Component.empty().append(decorated).append(PipouChat.counter(PipouChat.lastCount));
 			int addedTime = this.allMessages.get(0).addedTime();
 			this.allMessages.set(0, new GuiMessage(addedTime, counted, sig, tag));
+			PipouChat.lastAdded = counted;
 			this.refreshTrimmedMessages(); // reconstruit les lignes affichées depuis allMessages
 			ci.cancel();
 			return;
@@ -66,8 +71,11 @@ public class ChatComponentMixin {
 			} finally {
 				PipouChat.reentrant = false;
 			}
+			PipouChat.lastAdded = decorated; // la ligne [0] ajoutée par le jeu == decorated
 			ci.cancel();
+		} else {
+			// stacking ON, horodatage/emoji OFF : le jeu ajoute l'original -> c'est notre dernier.
+			PipouChat.lastAdded = component;
 		}
-		// (si horodatage OFF mais stacking ON : on laisse le jeu ajouter l'original, clé mémorisée)
 	}
 }

@@ -385,15 +385,6 @@ body::before {
   border: 1px solid var(--glass-edge); border-radius: 9px; padding: 9px 12px; font-size: 13px;
 }
 .pb-input:focus { outline: none; border-color: var(--gold-deep); }
-.profiles-hint { font-size: 12px; margin: 16px 0 8px; color: var(--gold); font-weight: 700; }
-.profile-mods { display: flex; flex-direction: column; gap: 6px; }
-.pmod {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--panel-2); border: 1px solid var(--glass-edge); border-radius: 9px;
-  padding: 8px 12px; font-size: 13px;
-}
-.pmod-del { cursor: pointer; color: var(--muted); font-weight: 800; padding: 0 4px; }
-.pmod-del:hover { color: var(--danger); }
 #profileSelect { max-width: 200px; }
 .modpack-dl { margin: 6px 0 0; }
 
@@ -411,13 +402,6 @@ body::before {
 /* Réglages de l'instance : loader + version + RAM côte à côte */
 .pd-settings { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; margin-bottom: 18px; }
 
-/* Bandeau « catalogue Fabric/Quilt uniquement » (gating loader) */
-.loader-gate {
-  grid-column: 1 / -1;
-  background: rgba(255,126,201,0.08); border: 1px solid var(--glass-edge);
-  border-left: 3px solid var(--gold); border-radius: 9px;
-  padding: 9px 12px; font-size: 12px; color: var(--gold-bright); line-height: 1.5; margin-bottom: 12px;
-}
 .pd-field { display: flex; flex-direction: column; gap: 8px;
   background: var(--panel-2); border: 1px solid var(--glass-edge); border-radius: 12px; padding: 13px 14px; }
 .pd-field > label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--gold); font-weight: 700; }
@@ -497,72 +481,6 @@ body::before {
 .bm-btn.on { color: #06210f; border: 1px solid transparent; background: linear-gradient(180deg, #52e08a, #2fae66); }
 .bm-btn:disabled { opacity: .6; cursor: wait; }
 
-/* Modules — mod menu façon Feather (onglets + grille de cartes) */
-.modules-topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 14px; margin-bottom: 16px; flex-wrap: wrap;
-}
-.modules-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.mtab {
-  background: var(--panel-2); border: 1px solid var(--glass-edge); color: var(--muted);
-  border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: all .15s;
-}
-.mtab:hover { color: var(--text); border-color: var(--gold-deep); }
-.mtab.active {
-  color: var(--gold-ink); border-color: var(--gold);
-  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-}
-.modules-search {
-  background: var(--panel-2); color: var(--text); border: 1px solid var(--glass-edge);
-  border-radius: 10px; padding: 9px 13px; font-size: 13px; flex: 1; min-width: 180px; max-width: 280px;
-}
-.modules-search:focus { outline: none; border-color: var(--gold-deep); }
-
-.modules-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px;
-}
-.module-card {
-  display: flex; flex-direction: column; align-items: center; text-align: center;
-  background: linear-gradient(180deg, rgba(255,255,255,.04), transparent), var(--panel-solid);
-  border: 1px solid var(--glass-edge); border-radius: 14px; padding: 16px 14px 14px;
-  transition: border-color .15s, box-shadow .15s, transform .1s;
-}
-.module-card:hover {
-  transform: translateY(-2px); border-color: rgba(255,126,201,.4);
-  box-shadow: 0 8px 22px rgba(0,0,0,.35);
-}
-.module-card.on { border-color: rgba(255,126,201,.5); box-shadow: 0 0 20px var(--gold-glow); }
-.mc-top { display: flex; align-items: center; gap: 6px; justify-content: center; }
-.mc-name { font-size: 14px; font-weight: 800; color: var(--text); }
-.mc-warn { color: var(--danger); font-size: 13px; cursor: help; }
-.mc-icon { font-size: 40px; line-height: 1; margin: 14px 0 12px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4)); }
-.mc-desc { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin-bottom: 14px; flex: 1; }
-.mc-toggle {
-  width: 100%; border-radius: 9px; padding: 9px; font-size: 13px; font-weight: 800; cursor: pointer;
-  background: var(--panel-2); color: var(--muted); border: 1px solid var(--glass-edge); transition: all .15s;
-}
-.mc-toggle:hover:not(:disabled) { color: var(--text); border-color: var(--gold-deep); }
-.mc-toggle.on {
-  color: #06210f; border: 1px solid transparent;
-  background: linear-gradient(180deg, #52e08a, #2fae66);
-  box-shadow: 0 3px 12px rgba(63,191,106,.35);
-}
-.mc-toggle:disabled { opacity: .6; cursor: wait; }
-
-/* Connexion Azure (client_id) */
-#card-azure { margin-top: 18px; }
-.azure-intro { line-height: 1.5; margin-bottom: 12px; }
-.azure-intro strong { color: var(--gold-bright); }
-.azure-row { display: flex; gap: 8px; }
-.azure-row input {
-  flex: 1; background: var(--code); color: var(--text);
-  border: 1px solid var(--glass-edge); border-radius: 9px;
-  padding: 10px 12px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 12.5px;
-}
-.azure-row input:focus { outline: none; border-color: var(--gold-deep); }
-.azure-status { margin-top: 10px; font-size: 12px; }
-
 /* Optimisations système (carte + toggle) */
 #card-system { margin-top: 18px; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -609,7 +527,6 @@ body::before {
 .step { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .step-desc { flex: 1; line-height: 1.5; margin: 0; }
 #card-fabric { margin-bottom: 18px; }
-.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .dl { margin-top: 15px; }
 .dl-bar { height: 9px; background: var(--panel-2); border: 1px solid var(--glass-edge);
@@ -619,33 +536,8 @@ body::before {
   box-shadow: 0 0 12px var(--gold-glow); transition: width .25s ease; }
 .dl-text { margin-top: 7px; font-family: monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.mods { display: flex; flex-direction: column; gap: 8px; margin-top: 13px; }
-.mod { display: flex; align-items: center; gap: 11px;
-  background: var(--panel-2); border: 1px solid var(--glass-edge);
-  border-radius: 11px; padding: 11px 13px; }
-.mod .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
-.mod.ok .dot { background: var(--gold); box-shadow: 0 0 8px var(--gold-glow); }
-.mod.missing .dot { background: var(--danger); }
-.mod .name { font-weight: 700; font-size: 13px; }
-.mod .why { color: var(--muted); font-size: 12px; }
-.mod .ver { margin-left: auto; font-size: 12px; color: var(--gold); font-family: monospace; }
-
-/* Badge « déjà installé » + tag « ✓ fait » */
-.badge {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
-  color: var(--gold-ink); background: linear-gradient(180deg, var(--gold-bright), var(--gold-deep));
-  border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: middle;
-}
+/* Tag « ✓ fait » (état d'installation) */
 .ok-tag { color: var(--gold-bright); font-weight: 700; }
-
-.note {
-  margin-top: 15px; padding: 11px 13px;
-  background: rgba(255,126,201,0.05);
-  border: 1px solid var(--glass-edge);
-  border-left: 3px solid var(--gold); border-radius: 9px;
-  font-size: 12px; color: var(--muted); line-height: 1.55;
-}
-.note strong { color: var(--gold-bright); }
 
 /* ---------- Boutons ---------- */
 .btn { border: none; border-radius: 11px; cursor: pointer; font-weight: 700;

@@ -40,6 +40,23 @@ async function readRaw() {
   return null // toujours illisible après tous les essais
 }
 
+// Rename ATOMIQUE avec retry : symétrique de readRaw. Sous Windows, le rename qui
+// remplace config.json peut échouer BRIÈVEMENT si l'antivirus/l'OS verrouille la
+// cible (EPERM/EBUSY/EACCES/UNKNOWN) — sans retry, un compte fraîchement authentifié
+// ne serait pas persisté. On réessaie ~1,7 s avant d'abandonner.
+async function renameWithRetry(tmp, p) {
+  let lastErr
+  for (let attempt = 0; attempt < 12; attempt++) {
+    try { await fsp.rename(tmp, p); return }
+    catch (e) {
+      lastErr = e
+      if (e.code === 'ENOENT') throw e // le tmp a disparu : anomalie, pas un verrou
+      await sleep(30 + attempt * 20)
+    }
+  }
+  throw lastErr
+}
+
 const isEmpty = (o) => !o || Object.keys(o).length === 0
 
 // Lit la config. Repli sur le cache mémoire dès que le disque renvoie quelque chose
@@ -70,7 +87,12 @@ async function updateConfig(mutator) {
     const p = configPath()
     const tmp = `${p}.${process.pid}.tmp`
     await fsp.writeFile(tmp, JSON.stringify(next, null, 2))
-    await fsp.rename(tmp, p) // atomique (remplace l'ancien d'un coup)
+    try {
+      await renameWithRetry(tmp, p) // atomique (remplace l'ancien d'un coup), avec retry
+    } catch (e) {
+      await fsp.unlink(tmp).catch(() => {}) // pas de .tmp orphelin qui traîne
+      throw e
+    }
     cache = next             // le cache reflète le disque
     return next
   })

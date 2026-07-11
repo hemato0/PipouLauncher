@@ -19,6 +19,13 @@ public final class PipouChat {
 	// Dernier message BRUT (sans horodatage ni compteur) et son nombre d'occurrences.
 	public static String lastKey = null;
 	public static int lastCount = 1;
+	// Référence exacte du dernier Component ajouté en tête : sert à VÉRIFIER que la ligne
+	// [0] est bien celle de lastKey avant d'empiler (sinon un lastKey périmé — toggle
+	// stacking, autre serveur — écraserait une ligne de chat sans rapport).
+	public static net.minecraft.network.chat.Component lastAdded = null;
+
+	/** Réinitialise l'état d'empilement (à appeler au changement de monde/serveur). */
+	public static void reset() { lastKey = null; lastCount = 1; lastAdded = null; }
 
 	private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("HH:mm");
 	private static final int PINK = 0xFF7EC9;

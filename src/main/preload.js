@@ -7,18 +7,10 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('launcher', {
   analyze: () => ipcRenderer.invoke('analyze'),
   recompute: (profileId) => ipcRenderer.invoke('recompute', { profileId }),
-  resolveMods: (gameVersion, profileId) =>
-    ipcRenderer.invoke('resolve-mods', { gameVersion, profileId }),
-  installMods: (gameVersion, profileId) =>
-    ipcRenderer.invoke('install-mods', { gameVersion, profileId }),
   getInstallStatus: (gameVersion) =>
     ipcRenderer.invoke('install-status', { gameVersion }),
   installVanilla: (gameVersion) =>
     ipcRenderer.invoke('install-vanilla', { gameVersion }),
-
-  // Configuration Azure (client_id)
-  getClientId: () => ipcRenderer.invoke('get-client-id'),
-  setClientId: (clientId) => ipcRenderer.invoke('set-client-id', { clientId }),
 
   // Comptes Minecraft (multi-comptes persistants + sélecteur)
   bootLog: (msg) => { try { ipcRenderer.invoke('boot-log', msg) } catch (_) {} },
@@ -32,24 +24,18 @@ contextBridge.exposeInMainWorld('launcher', {
   },
 
   accountsList: () => ipcRenderer.invoke('accounts-list'),
-  accountsRestore: () => ipcRenderer.invoke('accounts-restore'),
   accountAddMicrosoft: () => ipcRenderer.invoke('account-add-microsoft'),
   accountAddOffline: (username) => ipcRenderer.invoke('account-add-offline', { username }),
   accountSelect: (id) => ipcRenderer.invoke('account-select', { id }),
   accountRemove: (id) => ipcRenderer.invoke('account-remove', { id }),
-  authCancel: () => ipcRenderer.invoke('auth-cancel'),
   installFabric: (gameVersion) =>
     ipcRenderer.invoke('install-fabric', { gameVersion }),
-  openModsDir: () => ipcRenderer.invoke('open-mods-dir'),
 
-  // Modules (fonctions type Feather)
-  modulesList: () => ipcRenderer.invoke('modules-list'),
-  installModule: (id, gameVersion) => ipcRenderer.invoke('install-module', { id, gameVersion }),
+  // Désactivation d'un module hérité (le renderer l'appelle encore au nettoyage)
   removeModule: (id) => ipcRenderer.invoke('remove-module', { id }),
 
   // Profils de mods
   listProfiles: () => ipcRenderer.invoke('profiles-list'),
-  activeProfileMods: () => ipcRenderer.invoke('active-profile-mods'),
   createProfile: (name, opts) => ipcRenderer.invoke('create-profile', { name, opts }),
   switchProfile: (id) => ipcRenderer.invoke('switch-profile', { id }),
   deleteProfile: (id) => ipcRenderer.invoke('delete-profile', { id }),
@@ -57,7 +43,6 @@ contextBridge.exposeInMainWorld('launcher', {
   setProfileVersion: (id, version) => ipcRenderer.invoke('set-profile-version', { id, version }),
   setProfileRam: (id, mode, mb) => ipcRenderer.invoke('set-profile-ram', { id, mode, mb }),
   setProfileLoader: (id, loader) => ipcRenderer.invoke('set-profile-loader', { id, loader }),
-  loadersList: () => ipcRenderer.invoke('loaders-list'),
   importModpack: () => ipcRenderer.invoke('import-modpack'),
   refreshProfileIcons: (id) => ipcRenderer.invoke('refresh-profile-icons', { id }),
   onModpackProgress: (cb) => {
@@ -93,13 +78,6 @@ contextBridge.exposeInMainWorld('launcher', {
     const listener = (_e, code) => cb(code)
     ipcRenderer.on('game-exit', listener)
     return () => ipcRenderer.removeListener('game-exit', listener)
-  },
-
-  // Abonnement à la progression du téléchargement des mods.
-  onDownloadProgress: (cb) => {
-    const listener = (_e, data) => cb(data)
-    ipcRenderer.on('download-progress', listener)
-    return () => ipcRenderer.removeListener('download-progress', listener)
   },
 
   // Abonnement à la progression de l'installation de Fabric.

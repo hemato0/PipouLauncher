@@ -9,20 +9,16 @@ const state = {
   gcLabel: '',
   java: null,
   gameOptions: {},
-  gpuVendor: 'unknown',
   profiles: [],
   account: null,
   accounts: [],
   selectedAccountId: null,
-  install: { vanilla: false, fabric: { installed: false }, mods: new Set() },
-  moduleCatalog: [],
-  moduleInstalled: new Set(),
+  install: { vanilla: false, fabric: { installed: false } },
   versions: [],
   activeLoader: 'fabric'
 }
 
 const LOADER_LABELS = { fabric: 'Fabric', quilt: 'Quilt', forge: 'Forge', neoforge: 'NeoForge' }
-const isFabricLike = (l) => l === 'fabric' || l === 'quilt'
 
 // Reflète le loader actif dans l'UI : tag de la launchbar + gating des catalogues
 // Fabric/Quilt (mods d'optimisation + Modules) quand le profil est Forge/NeoForge.
@@ -135,11 +131,10 @@ async function refreshInstallStatus() {
     const st = await window.launcher.getInstallStatus(gv)
     state.install = {
       vanilla: st.vanilla,
-      fabric: st.fabric || { installed: false },
-      mods: new Set(st.mods || [])
+      fabric: st.fabric || { installed: false }
     }
   } catch (_) {
-    state.install = { vanilla: false, fabric: { installed: false }, mods: new Set() }
+    state.install = { vanilla: false, fabric: { installed: false } }
   }
   renderInstallStatus()
 }
@@ -346,15 +341,18 @@ function toggleAccountPanel(force) {
 // Le bouton JOUER n'est actif qu'une fois connecté.
 function updatePlay() {
   const btn = $('playBtn')
-  btn.disabled = !state.account
-  btn.title = state.account
-    ? 'Lancer Minecraft optimisé'
-    : 'Connecte-toi avec Microsoft pour jouer'
+  // Gate sur compte ET profil : launchGame déréférence state.profile.id (null si
+  // l'analyse machine a échoué) -> sans ce garde, TypeError cryptique au clic.
+  btn.disabled = !(state.account && state.profile)
+  btn.title = !state.account
+    ? 'Connecte-toi avec Microsoft pour jouer'
+    : (!state.profile ? 'Analyse de la machine incomplète — relance le launcher' : 'Lancer Minecraft optimisé')
 }
 
 // Lance le jeu et streame les logs dans la barre d'état.
 async function launchGame() {
   if (!state.account) return
+  if (!state.profile) { setStatus('Analyse de la machine incomplète — relance le launcher.'); return }
   const gameVersion = $('gameVersion').value
   $('playBtn').disabled = true
   setStatus('Lancement de Minecraft…')
@@ -429,17 +427,23 @@ function renderGameOptions() {
 // --- Changement de profil : on recalcule côté backend ---
 async function selectProfile(profileId) {
   setStatus('Recalcul du profil…')
-  const r = await window.launcher.recompute(profileId)
-  Object.assign(state, {
-    profile: r.profile, ramMB: r.ramMB, jvmArgs: r.jvmArgs,
-    gcLabel: r.gcLabel, java: r.java, gameOptions: r.gameOptions
-  })
-  renderProfiles()
-  renderCurrent()
-  // Re-rend l'instance active : footRam = RAM effective (respecte l'override
-  // manuel) et le libellé « Auto : X Go » est recalculé avec le nouveau profil de perf.
-  await refreshProfiles()
-  setStatus(`Profil « ${state.profile.name} » appliqué.`)
+  try {
+    const r = await window.launcher.recompute(profileId)
+    Object.assign(state, {
+      profile: r.profile, ramMB: r.ramMB, jvmArgs: r.jvmArgs,
+      gcLabel: r.gcLabel, java: r.java, gameOptions: r.gameOptions
+    })
+    renderProfiles()
+    renderCurrent()
+    // Re-rend l'instance active : footRam = RAM effective (respecte l'override
+    // manuel) et le libellé « Auto : X Go » est recalculé avec le nouveau profil de perf.
+    await refreshProfiles()
+    setStatus(`Profil « ${state.profile.name} » appliqué.`)
+  } catch (e) {
+    setStatus('Changement de profil échoué : ' + (e && e.message || e))
+  } finally {
+    updatePlay() // le bouton reflète l'état (profil chargé ou non)
+  }
 }
 
 // (resolveMods/installMods retirés : les mods d'optimisation manquants sont installés
@@ -707,7 +711,7 @@ async function renderProfileDetail(id) {
       <div class="pd-mod-info"><div class="pd-mod-name">${esc(m.name)}</div>${ver}</div>
       <span class="pd-mod-del" data-type="${m.type}" data-id="${esc(m.id)}" title="Retirer">✕</span>
     </div>`
-  }).join('') : '<div class="muted pd-empty">Aucun mod. Ajoute-en via la recherche ci-dessous ou l\'onglet Modules.</div>'
+  }).join('') : '<div class="muted pd-empty">Aucun mod. Ajoute-en via la recherche ci-dessous.</div>'
 
   box.innerHTML = `
     <div class="pd-head">
@@ -911,20 +915,42 @@ async function init() {
   const started = Date.now()
   B('init START')
 
-  // MISE À JOUR AUTO du launcher (app packagée) : on vérifie AVANT tout, pendant le splash.
-  // Si une mise à jour existe, elle se télécharge et s'installe toute seule (redémarrage).
+  // Démarrage réel de l'app, factorisé : lancé tout de suite, OU après l'échec d'une MAJ.
+  let booted = false
+  const bootApp = () => {
+    if (booted) return Promise.resolve()
+    booted = true
+    return bootRest(started).catch((e) => {
+      B('bootRest A JETÉ: ' + (e && e.message || e))
+      splashProgress(100, 'Erreur : ' + (e && e.message || e))
+      setTimeout(hideSplash, 1200)
+    })
+  }
+
+  // MISE À JOUR AUTO (app packagée) : vérifiée AVANT tout, pendant le splash. Si une MAJ
+  // se télécharge, on reste sur le splash tant qu'elle avance ; si elle échoue ou stagne
+  // (error/timeout/none), on démarre QUAND MÊME l'app -> jamais de splash figé.
   window.launcher.onUpdateStatus((s) => {
     if (s.state === 'checking') splashProgress(4, 'Vérification des mises à jour…')
     else if (s.state === 'available') splashProgress(6, `Mise à jour ${s.version || ''} trouvée…`)
     else if (s.state === 'downloading') splashProgress(Math.max(6, Math.min(99, s.percent || 0)), `Téléchargement de la mise à jour ${s.percent || 0}%…`)
     else if (s.state === 'installing') splashProgress(100, 'Installation… le launcher va redémarrer 💜')
+    else if (s.state === 'error' || s.state === 'timeout' || s.state === 'none') bootApp()
   })
+  let u = { state: 'none' }
   try {
     splashProgress(4, 'Vérification des mises à jour…')
-    const u = await window.launcher.checkUpdate()
-    if (u && u.state === 'updating') return // une MAJ s'installe -> on reste sur le splash
+    u = await window.launcher.checkUpdate()
   } catch (_) {}
+  if (u && u.state === 'updating') {
+    setTimeout(bootApp, 60000) // filet de sécurité : download bloqué -> on démarre au lieu de figer
+    return
+  }
+  await bootApp()
+}
 
+// Démarrage effectif de l'application (tout ce qui suit la vérification de mise à jour).
+async function bootRest(started) {
   // LE COMPTE D'ABORD — indépendamment de tout le reste. Il est purement local
   // (config.json) et ne doit JAMAIS dépendre de analyze / versions / profils / réseau.
   // Cause du bug "compte pas affiché, JOUER grisé" : refreshAccounts était la DERNIÈRE
@@ -940,7 +966,7 @@ async function init() {
     Object.assign(state, {
       hw: r.hw, profile: r.profile, ramMB: r.ramMB, jvmArgs: r.jvmArgs,
       gcLabel: r.gcLabel, java: r.java, gameOptions: r.gameOptions,
-      gpuVendor: r.gpuVendor, profiles: r.profiles
+      profiles: r.profiles
     })
     renderHardware(state.hw)
     renderProfiles()

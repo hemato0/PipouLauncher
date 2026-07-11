@@ -9,9 +9,6 @@
 // flows" = Yes, et une URL de redirection "http://localhost" (plateforme Mobile
 // and desktop). Voir README.
 
-const { safeStorage, app } = require('electron')
-const fsp = require('fs/promises')
-const path = require('path')
 const crypto = require('crypto')
 const http = require('http')
 
@@ -41,8 +38,6 @@ const MC_PROFILE_URL = 'https://api.minecraftservices.com/minecraft/profile'
 // api.minecraftservices.com (derrière Cloudflare) renvoie 403 sans User-Agent
 // correct. On en met un explicite sur TOUTES les requêtes d'auth.
 const AUTH_UA = 'perf-launcher/0.1.0 (Minecraft launcher)'
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function postJson(url, body) {
   const res = await fetch(url, {
@@ -344,8 +339,17 @@ async function doLogin({ openUrl }) {
 // redémarrage / changement de compte). Renvoie le compte + un refresh token à jour.
 async function refreshAccount(refreshToken) {
   const tok = await refreshMsToken(refreshToken)
-  const acc = await chainToMinecraft(tok.access_token)
-  return { ...acc, refreshToken: tok.refresh_token || refreshToken }
+  const rotated = tok.refresh_token || refreshToken
+  try {
+    const acc = await chainToMinecraft(tok.access_token)
+    return { ...acc, refreshToken: rotated }
+  } catch (e) {
+    // Le refresh MS a réussi (RT pivoté) mais la chaîne Xbox/XSTS/MC a échoué : on
+    // remonte le RT à jour sur l'erreur pour que l'appelant le persiste — sinon l'ancien
+    // RT (peut-être déjà invalidé côté Microsoft) forcerait une reconnexion OAuth à tort.
+    e.rotatedRefreshToken = rotated
+    throw e
+  }
 }
 
 // Annule une connexion en cours (ex. l'utilisateur a fermé le navigateur).

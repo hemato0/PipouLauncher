@@ -92,6 +92,19 @@ function resolveLibraries(clientJson, env) {
 
   for (const lib of clientJson.libraries || []) {
     if (!evaluateRules(lib.rules, env)) continue
+
+    // Ancien schéma (<1.19) : natives via la map lib.natives -> downloads.classifiers.
+    // (Traité AVANT le `continue` ci-dessous : certaines libs natives n'ont PAS
+    //  d'artifact principal.) Substitution ${arch} = bits de la JVM (32/64).
+    if (lib.natives && lib.downloads && lib.downloads.classifiers) {
+      const key = lib.natives[env.os.name]
+      if (key) {
+        const classifier = key.replace('${arch}', process.arch === 'ia32' ? '32' : '64')
+        const nat = lib.downloads.classifiers[classifier]
+        if (nat && nat.url) natives.push({ name: `${lib.name}:${classifier}`, path: nat.path, url: nat.url, sha1: nat.sha1 })
+      }
+    }
+
     const artifact = lib.downloads && lib.downloads.artifact
     if (!artifact || !artifact.url) continue
 
@@ -99,7 +112,7 @@ function resolveLibraries(clientJson, env) {
     const item = { name: lib.name, path: artifact.path, url: artifact.url, sha1: artifact.sha1 }
 
     if (classifier && classifier.startsWith('natives-')) {
-      // 2e passe : ne garder que le natif de l'arch hôte, rejeter les autres.
+      // 2e passe : ne garder que le natif de l'arch hôte, rejeter les autres (schéma ≥1.19).
       if (classifier === wantedNative) natives.push(item)
     } else {
       code.push(item)

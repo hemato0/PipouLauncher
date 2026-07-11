@@ -5,6 +5,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
@@ -82,7 +83,12 @@ public class PipouModClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			PipouHud.sessionStart = System.currentTimeMillis();
 			macroDownLast.clear();
+			PipouChat.reset(); // repart à zéro pour l'empilement des doublons (autre serveur)
 		});
+
+		// Fermeture du jeu : restaure le gamma d'origine AVANT que options.txt ne soit
+		// sauvegardé (sinon la « Luminosité + » figerait le gamma de l'utilisateur à 1.0).
+		ClientLifecycleEvents.CLIENT_STOPPING.register(PipouModClient::restoreBrightnessOnStop);
 
 		// À chaque tick client.
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -124,7 +130,10 @@ public class PipouModClient implements ClientModInitializer {
 		if (want) {
 			if (!zooming) { savedFov = mc.options.fov().get(); zooming = true; }
 			int level = Math.max(2, (int) PipouOptions.getNum("zoom.level", 3));
-			mc.options.fov().set(Math.max(1, savedFov / level));
+			// Clamp au minimum VANILLA (30) : l'OptionInstance fov() a une plage [30,110]
+			// et rejette toute valeur hors bornes (log « Illegal option value » + retour à
+			// 70) — ce qui cassait le zoom au réglage par défaut (70/3 = 23).
+			mc.options.fov().set(Math.max(30, savedFov / level));
 		} else if (zooming) {
 			mc.options.fov().set(savedFov);
 			zooming = false;
@@ -167,11 +176,27 @@ public class PipouModClient implements ClientModInitializer {
 
 	/** Luminosité + : gamma poussé au max vanilla (1.0), restauré quand désactivé. */
 	private static void applyBrightness(Minecraft mc) {
+		double cur = mc.options.gamma().get();
 		if (PipouOptions.isEnabled("brightness")) {
-			if (!brightening) { savedGamma = mc.options.gamma().get(); brightening = true; }
-			if (mc.options.gamma().get() < 0.999) mc.options.gamma().set(1.0);
+			if (!brightening) {
+				// On ne mémorise le gamma d'origine QUE si ce n'est pas déjà NOTRE valeur
+				// forcée (1.0). Sinon, après un crash sans restauration, options.txt garde
+				// 1.0 et on écraserait la vraie valeur de l'utilisateur. On la PERSISTE.
+				if (cur < 0.999) PipouOptions.setNum("brightness.gamma0", cur);
+				savedGamma = PipouOptions.getNum("brightness.gamma0", 0.5);
+				brightening = true;
+			}
+			if (cur < 0.999) mc.options.gamma().set(1.0);
 		} else if (brightening) {
-			mc.options.gamma().set(savedGamma);
+			mc.options.gamma().set(PipouOptions.getNum("brightness.gamma0", savedGamma));
+			brightening = false;
+		}
+	}
+
+	/** Restaure le gamma d'origine à la fermeture (sinon options.txt garderait 1.0). */
+	public static void restoreBrightnessOnStop(Minecraft mc) {
+		if (brightening) {
+			try { mc.options.gamma().set(PipouOptions.getNum("brightness.gamma0", savedGamma)); } catch (Throwable ignored) {}
 			brightening = false;
 		}
 	}

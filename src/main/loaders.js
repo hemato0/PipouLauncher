@@ -73,6 +73,14 @@ async function installQuilt(gameVersion, gameDir, loaderVersion, onProgress) {
     done++
     if (onProgress) onProgress({ done, total: libs.length, name: lib.name, phase: 'done' })
   }
+  // Échec persistant d'une lib -> retire le profil écrit et throw (cf. installFabric),
+  // sinon Quilt est vu « installé » alors que le classpath est incomplet.
+  const failed = results.filter(r => r.status === 'error')
+  if (failed.length) {
+    await fsp.rm(path.join(verDir, `${versionId}.json`), { force: true }).catch(() => {})
+    const names = failed.slice(0, 4).map(f => f.name).join(', ') + (failed.length > 4 ? '…' : '')
+    throw new Error(`Installation Quilt incomplète : ${failed.length}/${libs.length} librairie(s) en échec (${names}).`)
+  }
   return { loader: 'quilt', versionId, loaderVersion: lv, inheritsFrom: profile.inheritsFrom || gameVersion, libCount: libs.length, results }
 }
 
@@ -217,7 +225,7 @@ async function latestLoaderVersion(loader, gameVersion) {
 async function installLoader(loader, gameVersion, gameDir, opts = {}) {
   const { loaderVersion = null, javaPath = null, onProgress = null } = opts
   switch (loader) {
-    case 'fabric': return installFabric(gameVersion, gameDir, onProgress)
+    case 'fabric': return installFabric(gameVersion, gameDir, onProgress, loaderVersion)
     case 'quilt': return installQuilt(gameVersion, gameDir, loaderVersion, onProgress)
     case 'forge':
     case 'neoforge': return installViaInstaller(loader, gameVersion, gameDir, loaderVersion, javaPath, onProgress)

@@ -23,15 +23,25 @@ function sha1(buf) {
 
 // fetch avec timeout (AbortController) + retry à backoff exponentiel.
 // Ne réessaie PAS les 4xx non transitoires (elles ne se répareront pas).
-async function fetchWithRetry(url, { retries = 3, timeoutMs = 30000 } = {}) {
+// `consume(res)` (optionnel) lit le CORPS SOUS un timeout réarmé et sa valeur est
+// renvoyée : un corps bloqué par le CDN déclenche alors abort + retry, au lieu de
+// pendre ~5 min (bodyTimeout undici) sans retry. Sans consume, on renvoie la réponse
+// (l'appelant lit le corps lui-même, hors timeout — à réserver aux réponses sûres).
+async function fetchWithRetry(url, { retries = 3, timeoutMs = 30000, consume = null } = {}) {
   let lastErr
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+    let timer = setTimeout(() => ctrl.abort(), timeoutMs)
     try {
       const res = await fetch(url, { headers: HEADERS, signal: ctrl.signal })
+      if (res.ok) {
+        if (!consume) { clearTimeout(timer); return res }
+        clearTimeout(timer)
+        timer = setTimeout(() => ctrl.abort(), timeoutMs) // budget RÉARMÉ pour le corps
+        try { return await consume(res) }
+        finally { clearTimeout(timer) }
+      }
       clearTimeout(timer)
-      if (res.ok) return res
       // Réponse d'erreur : libérer le socket avant de réessayer/abandonner.
       if (res.body) { try { await res.body.cancel() } catch (_) {} }
       // 4xx (hors 408/429) = définitif : on abandonne sans réessayer.
@@ -61,10 +71,9 @@ async function fileMatches(filePath, expectedSha1) {
   }
 }
 
-// Récupère et parse un JSON distant (avec retry/timeout).
+// Récupère et parse un JSON distant (avec retry/timeout, corps lu sous timeout).
 async function fetchJson(url) {
-  const res = await fetchWithRetry(url)
-  return await res.json()
+  return await fetchWithRetry(url, { consume: (res) => res.json() })
 }
 
 // Brique bas niveau : télécharge une URL vers un chemin précis (crée les
@@ -75,8 +84,7 @@ async function downloadFile(url, destPath, expectedSha1) {
     return { status: 'cached' }
   }
 
-  const res = await fetchWithRetry(url)
-  const buf = Buffer.from(await res.arrayBuffer())
+  const buf = await fetchWithRetry(url, { consume: async (res) => Buffer.from(await res.arrayBuffer()) })
   if (expectedSha1 && sha1(buf) !== expectedSha1) {
     throw new Error('SHA1 non conforme (fichier corrompu ou altéré)')
   }

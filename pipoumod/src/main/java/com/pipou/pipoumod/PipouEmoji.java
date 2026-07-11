@@ -45,9 +45,23 @@ public final class PipouEmoji {
 		if (MAP.isEmpty() || !PipouOptions.isEnabled("emoji")) return in;
 		String s = in.getString();
 		if (s.indexOf(':') < 0 || !hasKnown(s)) return in;
+		// On aplatit via getString() (compatible toutes versions), ce qui PERD les
+		// composants interactifs. On refuse donc d'aplatir un message qui en contient
+		// (Click/Hover) — ex. un [Reclamer] cliquable — pour ne pas le rendre inerte.
+		// Rare (ces messages contiennent rarement des :raccourcis:) ; reconstruire l'arbre
+		// serait fragile multi-version (accès à ComponentContents), on préfère préserver.
+		if (hasInteractive(in)) return in;
 		MutableComponent out = Component.empty();
 		appendText(s, in.getStyle(), out);
 		return out;
+	}
+
+	/** Vrai si un noeud de l'arbre porte un ClickEvent/HoverEvent (composant interactif). */
+	private static boolean hasInteractive(Component c) {
+		Style st = c.getStyle();
+		if (st != null && (st.getClickEvent() != null || st.getHoverEvent() != null)) return true;
+		for (Component sib : c.getSiblings()) if (hasInteractive(sib)) return true;
+		return false;
 	}
 
 	private static boolean hasKnown(String s) {

@@ -155,15 +155,19 @@ async function writeOptions(gameDir, profile) {
 // Lance le jeu. account = { name, uuid, accessToken, type }. hw pour la JVM.
 // onLog(ligne) reçoit stdout/stderr ; onExit(code) à la fin. Renvoie le pid.
 async function launch({ mcVersion, gameDir, account, perfProfile, hw, totalRamMB, ramMB, loader, loaderVersion }, onLog, onExit) {
-  const java = await detectJava()
-  if (!java) throw new Error('Java introuvable — installe un JRE/JDK 21.')
-  if (java.major < 21) throw new Error(`Java ${java.major} détecté, mais Minecraft ${mcVersion} exige Java 21.`)
   if (!account || !account.accessToken) throw new Error('Connecte-toi avec Microsoft avant de jouer.')
 
   // options.txt optimisé (ne touche que nos clés, préserve le reste).
   await writeOptions(gameDir, perfProfile)
 
   const { profile, modded } = loadProfile(gameDir, mcVersion, loader, loaderVersion)
+  // Major Java requis lu DANS la version (javaVersion.majorVersion) : ne pas imposer
+  // 21 à tout le monde (1.20.1 tourne en 17, 1.16.5 en 8). On choisit un runtime adapté.
+  const requiredMajor = (profile.javaVersion && profile.javaVersion.majorVersion) || 21
+  const java = await detectJava(requiredMajor)
+  if (!java) throw new Error(`Java introuvable — installe un JRE/JDK ${requiredMajor}.`)
+  if (java.major < requiredMajor) throw new Error(`Java ${java.major} détecté, mais Minecraft ${mcVersion} exige Java ${requiredMajor}.`)
+
   const perfJvmArgs = buildJvmArgs({ ramMB, cores: hw.cpuThreads, javaMajor: java.major, totalRamMB })
   const args = buildLaunchArgs({ profile, gameDir, mcVersion, account, perfJvmArgs })
 

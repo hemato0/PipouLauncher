@@ -22,7 +22,18 @@ async function loadSecrets() {
 }
 async function saveSecrets(secrets) {
   if (!safeStorage.isEncryptionAvailable()) return
-  await fsp.writeFile(secretsPath(), safeStorage.encryptString(JSON.stringify(secrets)))
+  // Écriture ATOMIQUE (tmp + rename) : une interruption (crash/coupure/kill) pendant
+  // l'écriture ne doit PAS laisser accounts.dat tronqué — sinon loadSecrets jette et
+  // renvoie {} => TOUS les refresh tokens perdus d'un coup.
+  const p = secretsPath()
+  const tmp = `${p}.${process.pid}.tmp`
+  await fsp.writeFile(tmp, safeStorage.encryptString(JSON.stringify(secrets)))
+  try {
+    await fsp.rename(tmp, p)
+  } catch (e) {
+    await fsp.unlink(tmp).catch(() => {})
+    throw e
+  }
 }
 
 // Vue publique { accounts:[{id,type,name,uuid,offline}], selected }.
