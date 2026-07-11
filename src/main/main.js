@@ -556,6 +556,19 @@ ipcMain.handle('install-searched-mod', async (_evt, { projectId, slug, title, ic
   // Télécharge tout.
   for (const it of uniq) await downloadFile(it.downloadUrl, path.join(dir, it.fileName), it.sha1)
 
+  // DÉDUP : retire les AUTRES jars ayant le même modid que ceux qu'on vient
+  // d'installer (ancienne version / bêta d'un modpack ajoutée à la main). Sans ça,
+  // choisir « Iris 1.8.8 » laissait la bêta à côté -> doublon qui crashe. Scopé aux
+  // modids réellement installés (on ne touche pas aux autres mods).
+  try {
+    const newFiles = new Set(uniq.map(it => it.fileName))
+    const byModid = await scanModIdToFiles(dir)
+    for (const [, files] of Object.entries(byModid)) {
+      if (!files.some(f => newFiles.has(f))) continue // ce mod n'est pas dans le lot installé
+      for (const f of files) if (!newFiles.has(f)) await fsp.rm(path.join(dir, f), { force: true }).catch(() => {})
+    }
+  } catch (_) { /* dédup best-effort */ }
+
   // Logo + vrai nom Modrinth pour chaque mod lié (le principal garde ceux de la recherche).
   const metas = await getProjectsMeta(uniq.filter(it => it.projectId !== projectId).map(it => it.projectId))
 
@@ -1057,6 +1070,7 @@ ipcMain.handle('crash-disable-mod', async (_e, { file }) => {
   if (!file || !/\.jar$/i.test(file)) throw new Error('Fichier de mod invalide.')
   const src = path.join(await modsDir(), path.basename(file))
   if (!fs.existsSync(src)) throw new Error('Mod introuvable dans le profil actif.')
+  await fsp.rm(src + '.disabled', { force: true }).catch(() => {}) // évite l'état « .jar + .jar.disabled »
   await fsp.rename(src, src + '.disabled')
   return { disabled: path.basename(file) }
 })

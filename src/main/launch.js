@@ -114,7 +114,7 @@ function buildLaunchArgs({ profile, gameDir, mcVersion, account, perfJvmArgs }) 
   const map = {
     natives_directory: nativesDir,
     launcher_name: 'perf-launcher',
-    launcher_version: '0.1.8',
+    launcher_version: '0.1.9',
     classpath,
     classpath_separator: SEP,
     library_directory: path.join(gameDir, 'libraries'),
