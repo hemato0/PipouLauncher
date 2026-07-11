@@ -13,7 +13,7 @@ app.setName('perf-launcher')
 
 const { detectHardware, pickProfile, computeRamMB, PROFILES } = require('./hardware')
 const { buildJvmPlan } = require('./jvm')
-const { resolvePerfMods, gpuVendorFromModel, getBestVersion, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions } = require('./modrinth')
+const { resolvePerfMods, gpuVendorFromModel, getBestVersion, getVersionById, listModVersions, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions } = require('./modrinth')
 const crypto = require('crypto')
 const { optionsForProfile } = require('./settings')
 const { downloadMods, downloadFile, fetchJson } = require('./downloader')
@@ -225,15 +225,16 @@ ipcMain.handle('install-vanilla', async (evt, { gameVersion }) => {
 
 // Résout un mod + ses dépendances requises (ex. cloth-config) en une liste
 // d'items {fileName, downloadUrl, sha1}. Utilisé par le gestionnaire de mods.
-async function resolveModuleItems(slug, gameVersion, loader = LOADER) {
+async function resolveModuleItems(slug, gameVersion, loader = LOADER, rootVersionId = null) {
   const items = []
   const missing = [] // dépendances REQUISES introuvables (à ne pas avaler en silence)
   const seen = new Set()
-  const queue = [{ id: slug, required: true }]
+  // rootVersionId : version PRÉCISE choisie pour le mod principal (sinon la meilleure).
+  const queue = [{ id: slug, required: true, versionId: rootVersionId }]
   while (queue.length) {
-    const { id, required } = queue.shift()
+    const { id, required, versionId } = queue.shift()
     let best = null
-    try { best = await getBestVersion(id, gameVersion, loader) } catch (_) { best = null }
+    try { best = versionId ? await getVersionById(versionId) : await getBestVersion(id, gameVersion, loader) } catch (_) { best = null }
     if (!best) { if (required) missing.push(id); continue }
     if (seen.has(best.projectId)) continue
     seen.add(best.projectId)
@@ -479,14 +480,22 @@ ipcMain.handle('search-mods', async (_evt, { query, gameVersion }) => {
 })
 
 // Installe un mod cherché (+ dépendances) et le mémorise (avec logo + version).
-ipcMain.handle('install-searched-mod', async (_evt, { projectId, slug, title, iconUrl, gameVersion }) => {
+// Liste les versions d'un mod compatibles avec la version MC + le loader actif
+// (pour le sélecteur « choisir la version » du gestionnaire de mods).
+ipcMain.handle('mod-versions', async (_evt, { idOrSlug, gameVersion }) => {
+  const { loader } = await activeLoaderInfo()
+  return await listModVersions(idOrSlug, gameVersion, browserLoader(loader))
+})
+
+ipcMain.handle('install-searched-mod', async (_evt, { projectId, slug, title, iconUrl, gameVersion, versionId }) => {
   const { loader } = await activeLoaderInfo()
   const ml = browserLoader(loader)
   const dir = await modsDir()
   await fsp.mkdir(dir, { recursive: true })
 
-  // Mod choisi + ses dépendances REQUISES (BFS, pour TOUS les mods, via Modrinth).
-  const { items, missing } = await resolveModuleItems(slug, gameVersion, ml)
+  // Mod choisi (version PRÉCISE si versionId fourni, sinon la meilleure) + ses
+  // dépendances REQUISES (BFS, pour TOUS les mods, via Modrinth).
+  const { items, missing } = await resolveModuleItems(slug, gameVersion, ml, versionId || null)
   if (!items.length) throw new Error(`Aucune version compatible ${gameVersion}/${LOADER_LABEL[loader] || loader}.`)
   if (missing.length) throw new Error(`Dépendance(s) requise(s) introuvable(s) pour ${gameVersion}/${LOADER_LABEL[loader] || loader} : ${missing.join(', ')}.`)
 

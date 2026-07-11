@@ -185,6 +185,24 @@ async function getBestVersion(idOrSlug, gameVersion, loader = 'fabric', opts = {
   return toEntry(v)
 }
 
+// Liste TOUTES les versions d'un mod compatibles avec la version MC + le loader
+// (les plus récentes d'abord). Sert au sélecteur « choisir la version du mod ».
+async function listModVersions(idOrSlug, gameVersion, loader = 'fabric') {
+  const url = `${MODRINTH_API}/project/${idOrSlug}/version`
+    + `?game_versions=${encodeURIComponent(JSON.stringify([gameVersion]))}`
+    + `&loaders=${encodeURIComponent(JSON.stringify([loader]))}`
+  const res = await fetch(url, { headers: HEADERS })
+  if (!res.ok) throw new Error(`Modrinth ${idOrSlug}: HTTP ${res.status}`)
+  const versions = await res.json()
+  if (!Array.isArray(versions)) return []
+  return versions.map(v => ({
+    versionId: v.id,
+    versionNumber: v.version_number,
+    versionType: v.version_type, // release | beta | alpha
+    datePublished: v.date_published
+  }))
+}
+
 // Version précise par id (pour une dépendance qui épingle une version).
 async function getVersionById(versionId) {
   const res = await fetch(`${MODRINTH_API}/version/${versionId}`, { headers: HEADERS })
@@ -268,6 +286,6 @@ async function resolvePerfMods(gameVersion, loader = 'fabric', opts = {}) {
 }
 
 module.exports = {
-  PERF_MODS, resolvePerfMods, getBestVersion, gpuVendorFromModel, searchMods,
-  getProjectsMeta, getProjectsByHashes, getCompanions
+  PERF_MODS, resolvePerfMods, getBestVersion, getVersionById, listModVersions,
+  gpuVendorFromModel, searchMods, getProjectsMeta, getProjectsByHashes, getCompanions
 }

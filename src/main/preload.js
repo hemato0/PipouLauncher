@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('launcher', {
   // Gestionnaire de mods (recherche Modrinth)
   listVersions: () => ipcRenderer.invoke('list-versions'),
   searchMods: (query, gameVersion) => ipcRenderer.invoke('search-mods', { query, gameVersion }),
+  modVersions: (idOrSlug, gameVersion) => ipcRenderer.invoke('mod-versions', { idOrSlug, gameVersion }),
   installSearchedMod: (m, gameVersion) => ipcRenderer.invoke('install-searched-mod', { ...m, gameVersion }),
   removeSearchedMod: (projectId) => ipcRenderer.invoke('remove-searched-mod', { projectId }),
 

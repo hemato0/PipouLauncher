@@ -650,6 +650,7 @@ async function loadBrowser(query) {
     grid.innerHTML = hits.map(browserCard).join('')
     attachIconFallback(grid, 'img.bm-icon', 'bm-icon bm-noicon', '❖')
     grid.querySelectorAll('.bm-btn').forEach(b => b.addEventListener('click', () => toggleBrowserMod(b)))
+    grid.querySelectorAll('.bm-ver').forEach(b => b.addEventListener('click', () => openVersionPicker(b)))
   } catch (e) {
     grid.innerHTML = `<div class="muted">Erreur : ${esc(e.message)}</div>`
   }
@@ -663,45 +664,92 @@ function browserCard(m) {
   const icon = m.iconUrl
     ? `<img class="bm-icon" src="${esc(m.iconUrl)}" alt="" />`
     : `<div class="bm-icon bm-noicon">❖</div>`
-  return `<div class="browser-card">
+  return `<div class="browser-card" data-pid="${esc(m.projectId)}"
+      data-slug="${esc(m.slug)}" data-title="${esc(m.title)}" data-icon="${esc(m.iconUrl || '')}">
     ${icon}
     <div class="bm-info">
       <div class="bm-title">${esc(m.title)}</div>
       <div class="bm-desc">${esc(m.description)}</div>
       <div class="bm-meta">⬇ ${fmtDl(m.downloads)}</div>
     </div>
-    <button class="bm-btn ${m.installed ? 'on' : ''}" data-pid="${esc(m.projectId)}"
-      data-slug="${esc(m.slug)}" data-title="${esc(m.title)}" data-icon="${esc(m.iconUrl || '')}"
-      >${m.installed ? 'Installé' : 'Installer'}</button>
+    <div class="bm-cta">
+      <button class="bm-btn ${m.installed ? 'on' : ''}">${m.installed ? 'Installé' : 'Installer'}</button>
+      <button class="bm-ver" title="Choisir la version">▾</button>
+    </div>
   </div>`
 }
 
-async function toggleBrowserMod(btn) {
-  const pid = btn.dataset.pid
-  const on = btn.classList.contains('on')
+// versionId (optionnel) : installe une version PRÉCISE (depuis le sélecteur ▾) —
+// dans ce cas on installe/remplace, jamais on ne retire.
+async function toggleBrowserMod(btn, versionId) {
+  const d = btn.closest('.browser-card').dataset
+  const pid = d.pid
+  const doRemove = btn.classList.contains('on') && !versionId
   btn.disabled = true
-  btn.textContent = on ? 'Retrait…' : 'Installation…'
+  btn.textContent = doRemove ? 'Retrait…' : 'Installation…'
   try {
-    if (on) {
+    if (doRemove) {
       await window.launcher.removeSearchedMod(pid)
       btn.classList.remove('on'); btn.textContent = 'Installer'
       setStatus('Mod retiré.')
     } else {
       const r = await window.launcher.installSearchedMod(
-        { projectId: pid, slug: btn.dataset.slug, title: btn.dataset.title, iconUrl: btn.dataset.icon },
+        { projectId: pid, slug: d.slug, title: d.title, iconUrl: d.icon, versionId },
         $('gameVersion').value)
       btn.classList.add('on'); btn.textContent = 'Installé'
       const added = (r && r.added) || []
       setStatus(added.length
-        ? `${btn.dataset.title} installé ✓ — avec ${added.length} mod${added.length > 1 ? 's' : ''} lié${added.length > 1 ? 's' : ''} : ${added.slice(0, 3).join(', ')}${added.length > 3 ? '…' : ''}`
-        : `${btn.dataset.title} installé ✓`)
+        ? `${d.title} installé ✓ — avec ${added.length} mod${added.length > 1 ? 's' : ''} lié${added.length > 1 ? 's' : ''} : ${added.slice(0, 3).join(', ')}${added.length > 3 ? '…' : ''}`
+        : `${d.title} installé ✓`)
     }
   } catch (e) {
-    btn.textContent = on ? 'Installé' : 'Installer'
+    btn.textContent = doRemove ? 'Installé' : 'Installer'
     setStatus('Mod : ' + e.message)
   } finally {
     btn.disabled = false
     refreshProfiles() // met à jour le compte + la liste de mods du profil
+  }
+}
+
+// --- Sélecteur « choisir la version du mod » (popover, chargé à la demande) ---
+let activeVerPop = null
+function closeVersionPicker() {
+  if (activeVerPop) { activeVerPop.remove(); activeVerPop = null }
+  document.removeEventListener('mousedown', onVerOutside, true)
+}
+function onVerOutside(e) {
+  if (activeVerPop && !activeVerPop.contains(e.target) && !e.target.classList.contains('bm-ver')) closeVersionPicker()
+}
+async function openVersionPicker(verBtn) {
+  const wasOpen = activeVerPop && activeVerPop.dataset.for === verBtn.closest('.browser-card').dataset.pid
+  closeVersionPicker()
+  if (wasOpen) return // re-clic sur le même ▾ = fermer
+  const card = verBtn.closest('.browser-card'); const d = card.dataset
+  const pop = document.createElement('div')
+  pop.className = 'ver-pop'; pop.dataset.for = d.pid
+  pop.innerHTML = `<div class="ver-pop-head">Version de « ${esc(d.title)} » <span class="muted">(${esc($('gameVersion').value)})</span></div><div class="ver-pop-list muted">Chargement…</div>`
+  document.body.appendChild(pop)
+  const r = verBtn.getBoundingClientRect()
+  pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 300) + 'px'
+  pop.style.left = Math.max(8, Math.min(r.right - 240, window.innerWidth - 248)) + 'px'
+  activeVerPop = pop
+  setTimeout(() => document.addEventListener('mousedown', onVerOutside, true), 0)
+  try {
+    const vers = await window.launcher.modVersions(d.slug, $('gameVersion').value)
+    const list = pop.querySelector('.ver-pop-list')
+    if (!vers.length) { list.textContent = 'Aucune version pour cette version de Minecraft.'; return }
+    list.classList.remove('muted'); list.innerHTML = ''
+    vers.slice(0, 50).forEach(v => {
+      const item = document.createElement('button')
+      item.className = 'ver-item'
+      const badge = v.versionType && v.versionType !== 'release'
+        ? `<span class="ver-badge ${v.versionType}">${v.versionType}</span>` : ''
+      item.innerHTML = `<span class="ver-num">${esc(v.versionNumber)}</span>${badge}`
+      item.addEventListener('click', () => { closeVersionPicker(); toggleBrowserMod(card.querySelector('.bm-btn'), v.versionId) })
+      list.appendChild(item)
+    })
+  } catch (e) {
+    const list = pop.querySelector('.ver-pop-list'); if (list) list.textContent = 'Erreur : ' + (e && e.message || e)
   }
 }
 
