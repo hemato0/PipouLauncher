@@ -406,7 +406,7 @@ body::before {
   background: var(--panel-2); border: 1px solid var(--glass-edge); border-radius: 12px; padding: 13px 14px; }
 .pd-field > label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--gold); font-weight: 700; }
 .pd-select {
-  width: 100%; background: var(--code); color: var(--text);
+  width: 100%; background: var(--panel-solid); color: var(--text);
   border: 1px solid var(--glass-edge); border-radius: 9px; padding: 9px 11px; font-size: 13.5px; cursor: pointer;
 }
 .pd-select:hover, .pd-select:focus { border-color: var(--gold-deep); outline: none; }
@@ -579,11 +579,20 @@ body::before {
 .launch-actions { display: flex; align-items: center; gap: 16px; }
 .version-picker { display: flex; align-items: center; gap: 8px; }
 select {
-  background: var(--panel-2); color: var(--text);
+  background: var(--panel-solid); color: var(--text);
   border: 1px solid var(--glass-edge); border-radius: 9px;
   padding: 9px 11px; font-size: 13px; cursor: pointer; transition: border-color .15s;
 }
 select:hover, select:focus { border-color: var(--gold-deep); outline: none; }
+/* Liste déroulante NATIVE : le popup s'affiche sinon sur fond blanc -> texte clair
+   illisible. On force un fond OPAQUE sombre + texte clair sur chaque <option> (valeurs
+   en dur : les variables CSS ne sont pas toujours résolues dans le popup natif). */
+select option, .pd-select option {
+  background-color: #1c1230; color: #f7ecfb;
+}
+select option:checked, .pd-select option:checked {
+  background: #a855f7; color: #ffffff;
+}
 .loader-tag {
   display: inline-flex; align-items: center;
   padding: 9px 13px; border-radius: 9px; font-size: 13px; font-weight: 700;
