@@ -346,26 +346,29 @@ public class PipouScreen extends Screen {
 	}
 	// --- Rectangles ARRONDIS (look premium, « moins carré ») ---
 	// Rempli, 4 coins arrondis de rayon r. Coins tracés par test de disque (anti-escalier léger).
+	// Rangée de coin ANTI-ALIASÉE : partie pleine + 1 pixel-frontière gauche/droite en alpha
+	// partiel (couverture du disque) -> le bord de la courbe est LISSE, pas en escalier.
+	private static void aaRow(GuiGraphics g, int x, int w, int yy, int r, int i, int c) {
+		double dy = r - i - 0.5;
+		double exact = r - Math.sqrt(Math.max(0, (double) r * r - dy * dy)); // inset fractionnaire
+		int full = (int) Math.floor(exact);
+		int a = (c >>> 24) & 0xFF, rgb = c & 0xFFFFFF;
+		int bc = ((int) Math.round(a * (1.0 - (exact - full))) << 24) | rgb; // pixel-frontière
+		g.fill(x + full + 1, yy, x + w - full - 1, yy + 1, c);        // plein
+		g.fill(x + full, yy, x + full + 1, yy + 1, bc);               // frontière gauche (AA)
+		g.fill(x + w - full - 1, yy, x + w - full, yy + 1, bc);       // frontière droite (AA)
+	}
 	static void roundRect(GuiGraphics g, int x, int y, int w, int h, int r, int c) {
 		r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
 		if (r == 0) { g.fill(x, y, x + w, y + h, c); return; }
 		g.fill(x, y + r, x + w, y + h - r, c); // bande centrale pleine largeur
-		for (int i = 0; i < r; i++) {
-			double d = r - i - 0.5;
-			int in = (int) Math.round(r - Math.sqrt(Math.max(0, (double) r * r - d * d)));
-			g.fill(x + in, y + i, x + w - in, y + i + 1, c);           // rangée du haut
-			g.fill(x + in, y + h - 1 - i, x + w - in, y + h - i, c);   // rangée du bas
-		}
+		for (int i = 0; i < r; i++) { aaRow(g, x, w, y + i, r, i, c); aaRow(g, x, w, y + h - 1 - i, r, i, c); }
 	}
 	// Comme roundRect mais SEULS les 2 coins du HAUT sont arrondis (bandeau d'en-tête).
 	static void roundRectTop(GuiGraphics g, int x, int y, int w, int h, int r, int c) {
 		r = Math.max(0, Math.min(r, Math.min(w, h)));
 		g.fill(x, y + r, x + w, y + h, c);
-		for (int i = 0; i < r; i++) {
-			double d = r - i - 0.5;
-			int in = (int) Math.round(r - Math.sqrt(Math.max(0, (double) r * r - d * d)));
-			g.fill(x + in, y + i, x + w - in, y + i + 1, c);
-		}
+		for (int i = 0; i < r; i++) aaRow(g, x, w, y + i, r, i, c);
 	}
 	// Fond arrondi + bord 1px arrondi.
 	static void roundBox(GuiGraphics g, int x, int y, int w, int h, int r, int fill, int border) {
