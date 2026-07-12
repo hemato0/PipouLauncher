@@ -91,24 +91,22 @@ public class PipouScreen extends Screen {
 		PipouGfx.scale(g, sc, sc);
 
 		g.fill(0, 0, vw(), vh(), C_OVERLAY);
-		g.fill(px, py, px + pw, py + ph, C_PANEL);
-		border(g, px, py, pw, ph, C_PINK_DIM);
-
-		g.fill(px, py, px + pw, py + HEAD_H, C_HEADER);
+		int R = 9;
+		roundBox(g, px, py, pw, ph, R, C_PANEL, C_PINK_DIM);                 // panneau arrondi + bord
+		roundRectTop(g, px + 1, py + 1, pw - 2, HEAD_H, R - 1, C_HEADER);     // en-tête, haut arrondi
 		drawHeart(g, px + 11, py + 11, 2, C_PINK);
 		draw(g, "PipouMod", px + 26, py + 7, C_PINK, true);
 		draw(g, "Mod Menu", px + 26, py + 18, C_MUTED, false);
 		String clock = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
 		int cw = tw(clock) + 18, cx0 = px + pw / 2 - cw / 2;
-		g.fill(cx0, py + 8, cx0 + cw, py + 26, C_PILL);
-		border(g, cx0, py + 8, cw, 18, C_PINK_DIM);
+		roundBox(g, cx0, py + 8, cw, 18, 8, C_PILL, C_PINK_DIM);             // horloge = pilule
 		draw(g, clock, cx0 + 9, py + 13, C_TEXT, false);
 		String pn = mc.player != null ? mc.player.getGameProfile().getName() : "Joueur";
 		int nx = px + pw - 36 - tw(pn);
 		drawHeart(g, nx - 13, py + 11, 2, C_PURPLE);
 		draw(g, pn, nx, py + 13, C_TEXT, false);
 		boolean hClose = in(mx, my, px + pw - 28, py + 8, 18, 18);
-		g.fill(px + pw - 28, py + 8, px + pw - 10, py + 26, hClose ? 0x66FF5D8F : C_PILL);
+		roundRect(g, px + pw - 28, py + 8, 18, 18, 6, hClose ? 0x66FF5D8F : C_PILL); // croix ronde
 		drawC(g, "×", px + pw - 19, py + 13, hClose ? 0xFFFFAAAA : C_TEXT);
 
 		if (settingsOf != null) { renderSettings(g, mx, my); PipouGfx.pop(g); return; }
@@ -118,12 +116,11 @@ public class PipouScreen extends Screen {
 			int tw = tw(t) + 16;
 			if (tx + tw > searchX - 6) break;
 			boolean on = t.equals(tab), h = in(mx, my, tx, py + TABS_Y, tw, 18);
-			g.fill(tx, py + TABS_Y, tx + tw, py + TABS_Y + 18, on ? C_PINK : (h ? 0x33FF7EC9 : C_PILL));
+			roundRect(g, tx, py + TABS_Y, tw, 18, 6, on ? C_PINK : (h ? 0x33FF7EC9 : C_PILL));
 			drawC(g, t, tx + tw / 2, py + TABS_Y + 5, on ? C_INK : C_TEXT);
 			tx += tw + 5;
 		}
-		g.fill(searchX, py + TABS_Y, searchX + searchW, py + TABS_Y + 18, C_DARK);
-		border(g, searchX, py + TABS_Y, searchW, 18, searchFocused ? C_PINK : C_PINK_DIM);
+		roundBox(g, searchX, py + TABS_Y, searchW, 18, 6, C_DARK, searchFocused ? C_PINK : C_PINK_DIM);
 		String shown = searchQuery.isEmpty() ? "Rechercher..." : searchQuery + (searchFocused ? "_" : "");
 		draw(g, shown, searchX + 6, py + TABS_Y + 5, searchQuery.isEmpty() ? C_MUTED : C_TEXT, false);
 
@@ -152,21 +149,21 @@ public class PipouScreen extends Screen {
 	private void drawCard(GuiGraphics g, Module m, int x, int y, int mx, int my) {
 		boolean on = PipouOptions.isEnabled(m.id()), fav = PipouOptions.isFavorite(m.id());
 		boolean hover = in(mx, my, x, y, cardW, CARD_H) && my >= gridTop && my <= gridBottom;
-		g.fill(x, y, x + cardW, y + CARD_H, hover ? C_CARD_HOVER : C_CARD);
-		border(g, x, y, cardW, CARD_H, on ? C_PINK : (hover ? C_PINK_DIM : 0x22FFFFFF));
-		if (m.isNew()) g.fill(x, y, x + 3, y + CARD_H, C_GREEN);
+		roundBox(g, x, y, cardW, CARD_H, 7, hover ? C_CARD_HOVER : C_CARD,
+				on ? C_PINK : (hover ? C_PINK_DIM : 0x22FFFFFF));
+		if (m.isNew()) roundRect(g, x + 3, y + 9, 3, CARD_H - 18, 1, C_GREEN); // accent « nouveau »
 
-		draw(g, m.label(), x + 8, y + 6, C_TEXT, false);
-		drawHeart(g, x + cardW - 16, y + 6, 2, fav ? C_PINK : 0x55FFFFFF);
-		PipouIcons.draw(g, m.icon(), x + cardW / 2, y + 33, 26);
+		draw(g, m.label(), x + 9, y + 7, C_TEXT, false);
+		drawHeart(g, x + cardW - 16, y + 7, 2, fav ? C_PINK : 0x55FFFFFF);
+		PipouIcons.draw(g, m.icon(), x + cardW / 2, y + 33, 26, on ? C_PINK : C_TEXT); // logo teinté
 
 		int by = y + CARD_H - 17;
 		boolean hasGear = m.options().length > 0 || m.id().equals("autotext");
 		boolean hGear = in(mx, my, x + 7, by, 14, 13);
-		g.fill(x + 7, by, x + 21, by + 13, hGear && hasGear ? 0x44FF7EC9 : C_PILL);
+		roundRect(g, x + 7, by, 14, 13, 4, hGear && hasGear ? 0x44FF7EC9 : C_PILL);
 		drawGear(g, x + 10, by + 2, 1, hasGear ? (hGear ? C_PINK : C_MUTED) : 0x44FFFFFF);
 		int b1 = x + 24, b2 = x + cardW - 8;
-		g.fill(b1, by, b2, by + 13, on ? C_GREEN : C_GREY);
+		roundRect(g, b1, by, b2 - b1, 13, 6, on ? C_GREEN : C_GREY);
 		drawC(g, on ? "Activé" : "Désactivé", (b1 + b2) / 2, by + 3, on ? C_INK : C_MUTED);
 	}
 
@@ -175,7 +172,7 @@ public class PipouScreen extends Screen {
 		Module m = PipouModules.byId(settingsOf);
 		if (m == null) { settingsOf = null; return; }
 		boolean hBack = in(mx, my, px + 9, py + TABS_Y, 58, 18);
-		g.fill(px + 9, py + TABS_Y, px + 67, py + TABS_Y + 18, hBack ? 0x33FF7EC9 : C_PILL);
+		roundRect(g, px + 9, py + TABS_Y, 58, 18, 6, hBack ? 0x33FF7EC9 : C_PILL);
 		drawC(g, "« Retour", px + 38, py + TABS_Y + 5, C_TEXT);
 		draw(g, "Paramètres — " + m.label(), px + 78, py + TABS_Y + 5, C_PINK, false);
 
@@ -195,31 +192,30 @@ public class PipouScreen extends Screen {
 	}
 
 	private int rowBool(GuiGraphics g, String label, boolean val, int y, int mx, int my) {
-		g.fill(px + 12, y, px + pw - 12, y + 22, C_CARD);
+		roundRect(g, px + 12, y, px + pw - 24, 22, 6, C_CARD);
 		draw(g, label, px + 20, y + 7, C_TEXT, false);
 		int tw = 68, tx = px + pw - 20 - tw;
-		g.fill(tx, y + 3, tx + tw, y + 19, val ? C_GREEN : C_GREY);
+		roundRect(g, tx, y + 3, tw, 16, 6, val ? C_GREEN : C_GREY);
 		drawC(g, val ? "Activé" : "Désactivé", tx + tw / 2, y + 7, val ? C_INK : C_MUTED);
 		return y + 26;
 	}
 
 	private int rowSlider(GuiGraphics g, String label, double val, int y) {
-		g.fill(px + 12, y, px + pw - 12, y + 22, C_CARD);
+		roundRect(g, px + 12, y, px + pw - 24, 22, 6, C_CARD);
 		draw(g, label, px + 20, y + 7, C_TEXT, false);
 		int bx = px + pw - 20 - 96;
-		g.fill(bx, y + 3, bx + 16, y + 19, C_PILL); drawC(g, "-", bx + 8, y + 7, C_TEXT);
+		roundRect(g, bx, y + 3, 16, 16, 5, C_PILL); drawC(g, "-", bx + 8, y + 7, C_TEXT);
 		drawC(g, "x" + (int) val, bx + 48, y + 7, C_PINK);
-		g.fill(bx + 80, y + 3, bx + 96, y + 19, C_PILL); drawC(g, "+", bx + 88, y + 7, C_TEXT);
+		roundRect(g, bx + 80, y + 3, 16, 16, 5, C_PILL); drawC(g, "+", bx + 88, y + 7, C_TEXT);
 		return y + 26;
 	}
 
 	private int rowText(GuiGraphics g, String label, String val, String key, int y) {
-		g.fill(px + 12, y, px + pw - 12, y + 22, C_CARD);
+		roundRect(g, px + 12, y, px + pw - 24, 22, 6, C_CARD);
 		draw(g, label, px + 20, y + 7, C_MUTED, false);
 		int bw = 150, bx = px + pw - 20 - bw;
 		boolean editing = key.equals(editingKey);
-		g.fill(bx, y + 3, bx + bw, y + 19, C_DARK);
-		border(g, bx, y + 3, bw, 16, editing ? C_PINK : C_PINK_DIM);
+		roundBox(g, bx, y + 3, bw, 16, 5, C_DARK, editing ? C_PINK : C_PINK_DIM);
 		String shown = val.isEmpty() && !editing ? "(vide)" : val + (editing ? "_" : "");
 		draw(g, shown, bx + 5, y + 7, val.isEmpty() && !editing ? C_MUTED : C_TEXT, false);
 		return y + 26;
@@ -347,6 +343,34 @@ public class PipouScreen extends Screen {
 	private static void border(GuiGraphics g, int x, int y, int w, int h, int c) {
 		g.fill(x, y, x + w, y + 1, c); g.fill(x, y + h - 1, x + w, y + h, c);
 		g.fill(x, y, x + 1, y + h, c); g.fill(x + w - 1, y, x + w, y + h, c);
+	}
+	// --- Rectangles ARRONDIS (look premium, « moins carré ») ---
+	// Rempli, 4 coins arrondis de rayon r. Coins tracés par test de disque (anti-escalier léger).
+	static void roundRect(GuiGraphics g, int x, int y, int w, int h, int r, int c) {
+		r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+		if (r == 0) { g.fill(x, y, x + w, y + h, c); return; }
+		g.fill(x, y + r, x + w, y + h - r, c); // bande centrale pleine largeur
+		for (int i = 0; i < r; i++) {
+			double d = r - i - 0.5;
+			int in = (int) Math.round(r - Math.sqrt(Math.max(0, (double) r * r - d * d)));
+			g.fill(x + in, y + i, x + w - in, y + i + 1, c);           // rangée du haut
+			g.fill(x + in, y + h - 1 - i, x + w - in, y + h - i, c);   // rangée du bas
+		}
+	}
+	// Comme roundRect mais SEULS les 2 coins du HAUT sont arrondis (bandeau d'en-tête).
+	static void roundRectTop(GuiGraphics g, int x, int y, int w, int h, int r, int c) {
+		r = Math.max(0, Math.min(r, Math.min(w, h)));
+		g.fill(x, y + r, x + w, y + h, c);
+		for (int i = 0; i < r; i++) {
+			double d = r - i - 0.5;
+			int in = (int) Math.round(r - Math.sqrt(Math.max(0, (double) r * r - d * d)));
+			g.fill(x + in, y + i, x + w - in, y + i + 1, c);
+		}
+	}
+	// Fond arrondi + bord 1px arrondi.
+	static void roundBox(GuiGraphics g, int x, int y, int w, int h, int r, int fill, int border) {
+		roundRect(g, x, y, w, h, r, border);
+		roundRect(g, x + 1, y + 1, w - 2, h - 2, r - 1, fill);
 	}
 	private static final int[][] HEART = {
 			{0, 1, 1, 0, 1, 1, 0}, {1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 1, 1, 1, 1},

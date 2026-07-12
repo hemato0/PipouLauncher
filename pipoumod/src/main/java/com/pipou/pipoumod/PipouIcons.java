@@ -36,8 +36,9 @@ public final class PipouIcons {
 		}
 	}
 
-	/** Dessine le logo `id` centré en (cx,cy), hauteur ~= size. */
-	public static void draw(GuiGraphics g, String id, int cx, int cy, int size) {
+	/** Dessine le logo `id` centré en (cx,cy), hauteur ~= size, teinté par `color`.
+	 * Les PNG sont en blanc -> la couleur de texte les TEINTE (multiplication). */
+	public static void draw(GuiGraphics g, String id, int cx, int cy, int size, int color) {
 		String ch = MAP.get(id);
 		if (ch == null) return;
 		Minecraft mc = Minecraft.getInstance();
@@ -47,7 +48,7 @@ public final class PipouIcons {
 		PipouGfx.translate(g, cx, cy);
 		PipouGfx.scale(g, scale, scale);
 		int w = mc.font.width(glyph);
-		g.drawString(mc.font, glyph, -w / 2, Math.round(-BASE / 2f), 0xFFFFFFFF, false);
+		g.drawString(mc.font, glyph, -w / 2, Math.round(-BASE / 2f), color, false);
 		PipouGfx.pop(g);
 	}
 }
