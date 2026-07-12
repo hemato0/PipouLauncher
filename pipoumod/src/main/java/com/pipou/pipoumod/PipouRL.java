@@ -20,9 +20,23 @@ public final class PipouRL {
 	private static void init() {
 		if (inited) return;
 		inited = true;
+		// 1.21+ : méthode STATIQUE (String,String) -> ResourceLocation (= fromNamespaceAndPath).
+		// PIÈGE : en jeu le nom est remappé (intermediary) -> getMethod PAR NOM échoue et
+		// renvoyait null (+ ctor privé en 1.21) -> PipouRL.of renvoyait NULL => polices/logos
+		// cassés. On la résout donc par SIGNATURE (invariante au remap).
 		try {
-			fromNsPath = ResourceLocation.class.getMethod("fromNamespaceAndPath", String.class, String.class);
-		} catch (Throwable e) {
+			for (Method m : ResourceLocation.class.getMethods()) {
+				if (java.lang.reflect.Modifier.isStatic(m.getModifiers())
+						&& m.getReturnType() == ResourceLocation.class
+						&& m.getParameterCount() == 2
+						&& m.getParameterTypes()[0] == String.class
+						&& m.getParameterTypes()[1] == String.class) {
+					fromNsPath = m; break;
+				}
+			}
+		} catch (Throwable ignored) {}
+		// 1.20.x : pas de méthode statique -> constructeur public (String,String).
+		if (fromNsPath == null) {
 			try { ctor = ResourceLocation.class.getConstructor(String.class, String.class); } catch (Throwable ignored) {}
 		}
 	}

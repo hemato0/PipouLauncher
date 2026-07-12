@@ -44,7 +44,7 @@ public final class PipouIcons {
 		inited = true;
 		for (Method m : g.getClass().getMethods()) {
 			Class<?>[] p = m.getParameterTypes();
-			if (mBlit == null && p.length == 11 && p[0] == ResourceLocation.class
+			if (mBlit == null && p.length == 11 && !p[0].isPrimitive()   // p[0] = ResourceLocation
 					&& p[1] == int.class && p[2] == int.class && p[3] == int.class && p[4] == int.class
 					&& p[5] == float.class && p[6] == float.class
 					&& p[7] == int.class && p[8] == int.class && p[9] == int.class && p[10] == int.class)
