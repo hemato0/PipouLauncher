@@ -22,7 +22,10 @@ public class PipouScreen extends Screen {
 
 	private static final String[] TABS = {"Tout", "HUD", "PvP", "Rendu", "Chat", "Tab", "Favoris"};
 
-	private static final int C_OVERLAY = 0xE6120A1E, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
+	// Fond TOTALEMENT opaque (alpha FF) : sur un serveur à resource pack « image font »
+	// (menus dessinés dans le HUD via des glyphes-images), un fond semi-transparent laissait
+	// TRANSPARAÎTRE l'affichage du serveur derrière le menu. Opaque = rien ne passe.
+	private static final int C_OVERLAY = 0xFF0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
 	private static final int C_CARD = 0xFF221334, C_CARD_HOVER = 0xFF2C1A44, C_PINK = 0xFFFF7EC9;
 	private static final int C_PINK_DIM = 0x55FF7EC9, C_PURPLE = 0xFFA855F7, C_TEXT = 0xFFF7ECFB;
 	private static final int C_MUTED = 0xFFB79FCE, C_GREEN = 0xFF33C270, C_GREY = 0x33FFFFFF;

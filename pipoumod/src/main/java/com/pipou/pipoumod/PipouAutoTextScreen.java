@@ -15,7 +15,7 @@ import java.util.List;
  */
 public class PipouAutoTextScreen extends Screen {
 
-	private static final int C_OVERLAY = 0xD0120A1E, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
+	private static final int C_OVERLAY = 0xFF0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
 	private static final int C_CARD = 0xFF221334, C_PINK = 0xFFFF7EC9, C_PINK_DIM = 0x55FF7EC9;
 	private static final int C_TEXT = 0xFFF7ECFB, C_MUTED = 0xFFB79FCE, C_PILL = 0xFF2A1A40;
 	private static final int C_DARK = 0xFF120A1E, C_INK = 0xFF1A0A16, C_GREEN = 0xFF33C270, C_RED = 0xFFFF5D6C;
