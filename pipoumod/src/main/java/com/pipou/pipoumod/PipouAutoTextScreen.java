@@ -15,7 +15,7 @@ import java.util.List;
  */
 public class PipouAutoTextScreen extends Screen {
 
-	private static final int C_OVERLAY = 0xFF0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
+	private static final int C_OVERLAY = 0xCC0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
 	private static final int C_CARD = 0xFF221334, C_PINK = 0xFFFF7EC9, C_PINK_DIM = 0x55FF7EC9;
 	private static final int C_TEXT = 0xFFF7ECFB, C_MUTED = 0xFFB79FCE, C_PILL = 0xFF2A1A40;
 	private static final int C_DARK = 0xFF120A1E, C_INK = 0xFF1A0A16, C_GREEN = 0xFF33C270, C_RED = 0xFFFF5D6C;
@@ -191,13 +191,9 @@ public class PipouAutoTextScreen extends Screen {
 		g.fill(x, y, x + w, y + 1, c); g.fill(x, y + h - 1, x + w, y + h, c);
 		g.fill(x, y, x + 1, y + h, c); g.fill(x + w - 1, y, x + w, y + h, c);
 	}
-	private static final int[][] HEART = {
-			{0, 1, 1, 0, 1, 1, 0}, {1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 1, 1, 1, 1},
-			{0, 1, 1, 1, 1, 1, 0}, {0, 0, 1, 1, 1, 0, 0}, {0, 0, 0, 1, 0, 0, 0}
-	};
+	// Cœur en TEXTURE lisse (blit), décalé de +2px à droite.
+	private static final ResourceLocation HEART_PINK = PipouRL.of("pipoumod", "textures/gui/icons/heart.png");
 	private static void drawHeart(GuiGraphics g, int x, int y, int s, int color) {
-		for (int r = 0; r < HEART.length; r++)
-			for (int c = 0; c < HEART[r].length; c++)
-				if (HEART[r][c] == 1) g.fill(x + c * s, y + r * s, x + c * s + s, y + r * s + s, color);
+		PipouIcons.drawTex(g, HEART_PINK, x + (7 * s) / 2 + 2, y + (6 * s) / 2, 6 * s + 1, 0xFFFFFFFF);
 	}
 }

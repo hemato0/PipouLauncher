@@ -58,16 +58,22 @@ public final class PipouIcons {
 
 	/** Dessine le logo `id` centré en (cx,cy), côté `size` px, teinté par `color` (ARGB). */
 	public static void draw(GuiGraphics g, String id, int cx, int cy, int size, int color) {
-		ResourceLocation rl = TEX.get(id);
+		drawTex(g, TEX.get(id), cx, cy, size, color);
+	}
+
+	/** Dessine une texture (ResourceLocation) centrée en (cx,cy), côté `size`, teintée `color`.
+	 * color = 0xFFFFFFFF pour laisser les couleurs du PNG intactes (ex. cœurs déjà colorés). */
+	public static void drawTex(GuiGraphics g, ResourceLocation rl, int cx, int cy, int size, int color) {
 		if (rl == null) return;
 		initGfx(g);
-		if (mBlit == null) return; // version sans ce blit (1.21.2+) : pas de logo plutôt qu'un carré
+		if (mBlit == null) return; // version sans ce blit (1.21.2+)
 		int x = cx - size / 2, y = cy - size / 2;
 		float r = ((color >> 16) & 0xFF) / 255f, gc = ((color >> 8) & 0xFF) / 255f, b = (color & 0xFF) / 255f;
+		boolean tint = mColor != null && color != 0xFFFFFFFF;
 		try {
-			if (mColor != null) mColor.invoke(g, r, gc, b, 1f);   // teinte (PNG blanc -> couleur)
+			if (tint) mColor.invoke(g, r, gc, b, 1f);   // teinte (PNG blanc -> couleur)
 			mBlit.invoke(g, rl, x, y, size, size, 0f, 0f, SRC, SRC, SRC, SRC);
-			if (mColor != null) mColor.invoke(g, 1f, 1f, 1f, 1f);  // reset
+			if (tint) mColor.invoke(g, 1f, 1f, 1f, 1f);  // reset
 		} catch (Throwable ignored) {}
 	}
 }

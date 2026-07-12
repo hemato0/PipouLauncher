@@ -22,10 +22,11 @@ public class PipouScreen extends Screen {
 
 	private static final String[] TABS = {"Tout", "HUD", "PvP", "Rendu", "Chat", "Tab", "Favoris"};
 
-	// Fond TOTALEMENT opaque (alpha FF) : sur un serveur à resource pack « image font »
-	// (menus dessinés dans le HUD via des glyphes-images), un fond semi-transparent laissait
-	// TRANSPARAÎTRE l'affichage du serveur derrière le menu. Opaque = rien ne passe.
-	private static final int C_OVERLAY = 0xFF0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
+	// Fond SEMI-TRANSPARENT (on revoit le jeu derrière). Sûr désormais : le menu n'utilise
+	// PLUS aucune police détournable par le serveur (texte en Poppins réel depuis le fix
+	// PipouRL, symboles Poppins, roue + cœurs en primitives/textures) -> aucun glyphe-image
+	// du pack serveur ne peut se déclencher, donc plus de « menus dorés » qui transparaissent.
+	private static final int C_OVERLAY = 0xCC0E0717, C_PANEL = 0xFF181026, C_HEADER = 0xFF221436;
 	private static final int C_CARD = 0xFF221334, C_CARD_HOVER = 0xFF2C1A44, C_PINK = 0xFFFF7EC9;
 	private static final int C_PINK_DIM = 0x55FF7EC9, C_PURPLE = 0xFFA855F7, C_TEXT = 0xFFF7ECFB;
 	private static final int C_MUTED = 0xFFB79FCE, C_GREEN = 0xFF33C270, C_GREY = 0x33FFFFFF;
@@ -375,14 +376,16 @@ public class PipouScreen extends Screen {
 		roundRect(g, x, y, w, h, r, border);
 		roundRect(g, x + 1, y + 1, w - 2, h - 2, r - 1, fill);
 	}
-	private static final int[][] HEART = {
-			{0, 1, 1, 0, 1, 1, 0}, {1, 1, 1, 1, 1, 1, 1}, {1, 1, 1, 1, 1, 1, 1},
-			{0, 1, 1, 1, 1, 1, 0}, {0, 0, 1, 1, 1, 0, 0}, {0, 0, 0, 1, 0, 0, 0}
-	};
+	// Cœurs = VRAIES TEXTURES lisses (blit + blur), plus de bitmap pixelisé. 3 couleurs
+	// pré-teintées (rose / violet / éteint) pour ne pas dépendre d'une teinte runtime.
+	private static final ResourceLocation HEART_PINK = PipouRL.of("pipoumod", "textures/gui/icons/heart.png");
+	private static final ResourceLocation HEART_PURPLE = PipouRL.of("pipoumod", "textures/gui/icons/heart_purple.png");
+	private static final ResourceLocation HEART_OFF = PipouRL.of("pipoumod", "textures/gui/icons/heart_off.png");
 	private static void drawHeart(GuiGraphics g, int x, int y, int s, int color) {
-		for (int r = 0; r < HEART.length; r++)
-			for (int c = 0; c < HEART[r].length; c++)
-				if (HEART[r][c] == 1) g.fill(x + c * s, y + r * s, x + c * s + s, y + r * s + s, color);
+		ResourceLocation rl = color == C_PINK ? HEART_PINK : (color == C_PURPLE ? HEART_PURPLE : HEART_OFF);
+		int size = 6 * s + 1;
+		// centré sur l'ancienne position du bitmap, décalé de +2 px VERS LA DROITE.
+		PipouIcons.drawTex(g, rl, x + (7 * s) / 2 + 2, y + (6 * s) / 2, size, 0xFFFFFFFF);
 	}
 	// Engrenage ⚙ dessiné en PRIMITIVES (jamais via une police vanilla surchargeable par un
 	// pack serveur). Anneau à dents + trou central. 9×9.
