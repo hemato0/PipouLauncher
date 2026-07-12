@@ -161,7 +161,7 @@ public class PipouScreen extends Screen {
 		boolean hasGear = m.options().length > 0 || m.id().equals("autotext");
 		boolean hGear = in(mx, my, x + 7, by, 14, 13);
 		g.fill(x + 7, by, x + 21, by + 13, hGear && hasGear ? 0x44FF7EC9 : C_PILL);
-		drawC(g, "⚙", x + 14, by + 3, hasGear ? (hGear ? C_PINK : C_MUTED) : 0x44FFFFFF);
+		drawGear(g, x + 10, by + 2, 1, hasGear ? (hGear ? C_PINK : C_MUTED) : 0x44FFFFFF);
 		int b1 = x + 24, b2 = x + cardW - 8;
 		g.fill(b1, by, b2, by + 13, on ? C_GREEN : C_GREY);
 		drawC(g, on ? "Activé" : "Désactivé", (b1 + b2) / 2, by + 3, on ? C_INK : C_MUTED);
@@ -353,5 +353,17 @@ public class PipouScreen extends Screen {
 		for (int r = 0; r < HEART.length; r++)
 			for (int c = 0; c < HEART[r].length; c++)
 				if (HEART[r][c] == 1) g.fill(x + c * s, y + r * s, x + c * s + s, y + r * s + s, color);
+	}
+	// Engrenage ⚙ dessiné en PRIMITIVES (jamais via une police vanilla surchargeable par un
+	// pack serveur). Anneau à dents + trou central. 9×9.
+	private static final int[][] GEAR = {
+			{0, 0, 0, 1, 1, 1, 0, 0, 0}, {1, 0, 0, 1, 1, 1, 0, 0, 1}, {1, 1, 1, 1, 1, 1, 1, 1, 1},
+			{0, 1, 1, 0, 0, 0, 1, 1, 0}, {1, 1, 1, 0, 0, 0, 1, 1, 1}, {0, 1, 1, 0, 0, 0, 1, 1, 0},
+			{1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 1, 1, 1, 0, 0, 1}, {0, 0, 0, 1, 1, 1, 0, 0, 0}
+	};
+	private static void drawGear(GuiGraphics g, int x, int y, int s, int color) {
+		for (int r = 0; r < GEAR.length; r++)
+			for (int c = 0; c < GEAR[r].length; c++)
+				if (GEAR[r][c] == 1) g.fill(x + c * s, y + r * s, x + c * s + s, y + r * s + s, color);
 	}
 }

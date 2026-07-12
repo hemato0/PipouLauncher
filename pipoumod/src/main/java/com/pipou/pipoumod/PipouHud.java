@@ -42,6 +42,7 @@ public class PipouHud {
 				vh = mc.getWindow().getGuiScaledHeight();
 			}
 
+			try {
 			// --- Colonne d'infos en haut à gauche ---
 			int y = 4;
 			if (PipouOptions.isEnabled("fps")) {
@@ -112,7 +113,9 @@ public class PipouHud {
 				drawKeystrokes(g, mc, vh);
 			}
 
-			if (custom) PipouGfx.pop(g);
+			} finally {
+				if (custom) PipouGfx.pop(g);
+			}
 		});
 	}
 

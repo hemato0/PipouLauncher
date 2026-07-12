@@ -50,7 +50,7 @@ public final class PipouModules {
 			// --- Chat (options regroupées) ---
 			new Module("chat", "Chat", "Chat", "chat_stacking", false, new Opt[]{
 					Opt.bool("chat.timestamps", "Horodatage des messages"),
-					Opt.bool("chat.timestamps.seconds", "   ↳ avec les secondes"),
+					Opt.bool("chat.timestamps.seconds", "   > avec les secondes"),
 					Opt.bool("chat.stacking", "Empiler les doublons (xN)"),
 					Opt.bool("chat.copyscreen", "Bouton « Copier » sur les captures")}),
 			new Module("autotext", "Auto-texte", "Chat", "autotext", true, NONE),

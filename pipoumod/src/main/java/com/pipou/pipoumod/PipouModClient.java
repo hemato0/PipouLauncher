@@ -210,7 +210,13 @@ public class PipouModClient implements ClientModInitializer {
 			try {
 				f.setAccessible(true);
 				Object v = f.get(opt);
-				if (v instanceof Double d && d == cur) { f.set(opt, value); done = true; }
+				if (v instanceof Double d && d == cur) {
+					f.set(opt, value);
+					// Confirme qu'on a touché le BON champ (celui que get() lit) et pas un
+					// homonyme (ex. initialValue = même valeur par défaut) : sinon on annule.
+					if (mc.options.gamma().get() == value) { done = true; break; }
+					f.set(opt, cur);
+				}
 			} catch (Throwable ignored) {}
 		}
 		if (!done) { try { mc.options.gamma().set(value); } catch (Throwable ignored) {} }
@@ -224,9 +230,13 @@ public class PipouModClient implements ClientModInitializer {
 		}
 	}
 
-	/** Hitbox : affiche les boîtes de collision des entités (comme F3+B). */
+	/** Hitbox : affiche les boîtes de collision des entités (comme F3+B). On n'écrit le champ
+	 * QUE sur TRANSITION de l'option (sinon on écraserait le F3+B vanilla à chaque tick). */
+	private static boolean hitboxApplied = false;
 	private static void applyHitboxes(Minecraft mc) {
-		try { mc.getEntityRenderDispatcher().setRenderHitBoxes(PipouOptions.isEnabled("hitbox")); }
+		boolean want = PipouOptions.isEnabled("hitbox");
+		if (want == hitboxApplied) return; // rien changé -> laisse F3+B piloter entre-temps
+		try { mc.getEntityRenderDispatcher().setRenderHitBoxes(want); hitboxApplied = want; }
 		catch (Throwable ignored) { /* méthode absente sur une version : sans effet */ }
 	}
 }
