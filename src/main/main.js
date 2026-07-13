@@ -14,14 +14,23 @@ const fsp = require('fs/promises')
 // ne RIEN perdre (la migration retentera au prochain lancement). Doit être fait AVANT tout
 // accès à userData.
 ;(function migrateUserData() {
-  let name = 'PipouLauncher'
+  const TARGET = '.PipouLauncher'
+  // Anciens noms possibles, du plus récent au plus ancien (l'user a pu passer par PipouLauncher).
+  const OLD = ['PipouLauncher', 'perf-launcher']
+  let name = TARGET
   try {
     const base = app.getPath('appData') // %APPDATA%\Roaming
-    const oldDir = path.join(base, 'perf-launcher')
-    const newDir = path.join(base, 'PipouLauncher')
-    if (!fs.existsSync(newDir) && fs.existsSync(oldDir)) {
-      try { fs.renameSync(oldDir, newDir) }
-      catch (_) { if (!fs.existsSync(newDir)) name = 'perf-launcher' }
+    const newDir = path.join(base, TARGET)
+    if (!fs.existsSync(newDir)) {
+      for (const old of OLD) {
+        const oldDir = path.join(base, old)
+        if (fs.existsSync(oldDir)) { try { fs.renameSync(oldDir, newDir) } catch (_) {} break }
+      }
+      // Rename impossible (verrou) et cible absente -> on REVIENT à l'ancien dossier existant
+      // pour ne RIEN perdre (la migration retentera au prochain lancement).
+      if (!fs.existsSync(newDir)) {
+        for (const old of OLD) { if (fs.existsSync(path.join(base, old))) { name = old; break } }
+      }
     }
   } catch (_) {}
   app.setName(name)
