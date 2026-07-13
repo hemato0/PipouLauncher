@@ -18,16 +18,22 @@ const fsp = require('fs/promises')
   // Anciens noms possibles, du plus récent au plus ancien (l'user a pu passer par PipouLauncher).
   const OLD = ['PipouLauncher', 'perf-launcher']
   let name = TARGET
+  // Sleep SYNCHRONE (sans peg CPU) : après une auto-MAJ, l'ancien processus lâche ses handles
+  // avec un léger retard -> renameSync échoue en EPERM. On retente quelques fois espacées.
+  const sleep = (ms) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } catch (_) {} }
   try {
     const base = app.getPath('appData') // %APPDATA%\Roaming
     const newDir = path.join(base, TARGET)
     if (!fs.existsSync(newDir)) {
-      for (const old of OLD) {
-        const oldDir = path.join(base, old)
-        if (fs.existsSync(oldDir)) { try { fs.renameSync(oldDir, newDir) } catch (_) {} break }
+      let src = null
+      for (const old of OLD) { const d = path.join(base, old); if (fs.existsSync(d)) { src = d; break } }
+      if (src) {
+        for (let i = 0; i < 6 && !fs.existsSync(newDir); i++) {
+          try { fs.renameSync(src, newDir); break } catch (_) { if (i < 5) sleep(180) }
+        }
       }
-      // Rename impossible (verrou) et cible absente -> on REVIENT à l'ancien dossier existant
-      // pour ne RIEN perdre (la migration retentera au prochain lancement).
+      // Toujours pas migré (verrou persistant) -> on RESTE sur l'ancien dossier pour ne RIEN
+      // perdre (la migration retentera au prochain lancement propre).
       if (!fs.existsSync(newDir)) {
         for (const old of OLD) { if (fs.existsSync(path.join(base, old))) { name = old; break } }
       }
