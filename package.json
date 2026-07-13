@@ -1,6 +1,6 @@
 {
   "name": "perf-launcher",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "PipouLauncher 💜 — launcher Minecraft d'optimisation (rose & violet, cœurs partout).",
   "main": "src/main/main.js",
   "scripts": {

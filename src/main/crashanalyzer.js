@@ -60,6 +60,26 @@ function analyzeCrash(log) {
     }
   }
 
+  // --- 1b) Échec d'INJECTION d'un mixin de COMPATIBILITÉ (« Scanned 0 target(s) ») ---
+  // Ex réel : "Critical injection failure: … in veil.fabric.mixins.json:compat.sodium.
+  //   ShaderLoaderMixin from mod veil failed injection check, (0/1) succeeded." => Veil
+  //   (souvent EMBARQUÉ dans Effective) vise une API Sodium d'une AUTRE version -> crash.
+  // culprit = le mod du mixin (veil) ; target = le mod visé (compat.<target>).
+  if (/Critical injection failure|failed injection check|InjectionError/i.test(log)) {
+    const inj = log.match(/(\S+):compat\.([a-z0-9_]+)\.\S* from mod ([a-z0-9_-]+)/i)
+    if (inj) {
+      const target = modFromHint('', inj[2])
+      return {
+        kind: 'mixin-conflict', // réutilise la modale (mise à jour / désactivation)
+        culpritId: inj[3],
+        targetId: (target && target.modid) || inj[2],
+        targetName: (target && target.name) || inj[2],
+        targetClass: '',
+        missingMethod: null
+      }
+    }
+  }
+
   // --- 2a) Conflit MUTUEL de versions (écran Fabric « Incompatible mods found ») ---
   // Ex : "Mod 'Iris' (iris) … requires any 0.6.x version of mod 'Sodium' (sodium), but
   //       only the wrong version is present: 0.8.12!" -> Iris ⟷ Sodium bloqués.
