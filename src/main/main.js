@@ -7,9 +7,25 @@ const path = require('path')
 const fs = require('fs')
 const fsp = require('fs/promises')
 
-// Nom d'app FIXE : garde userData = %APPDATA%/perf-launcher même une fois packagé
-// (productName = "PipouLauncher"), pour ne pas perdre comptes/profils existants.
-app.setName('perf-launcher')
+// Dossier de données = %APPDATA%/PipouLauncher (app.setName pilote getPath('userData')).
+// MIGRATION : l'ancien dossier s'appelait 'perf-launcher' -> on le RENOMME en 'PipouLauncher'
+// au tout 1er lancement pour conserver comptes, mods, profils et config. Si le rename échoue
+// (dossier verrouillé) ET que le nouveau n'existe pas encore, on REVIENT à l'ancien nom pour
+// ne RIEN perdre (la migration retentera au prochain lancement). Doit être fait AVANT tout
+// accès à userData.
+;(function migrateUserData() {
+  let name = 'PipouLauncher'
+  try {
+    const base = app.getPath('appData') // %APPDATA%\Roaming
+    const oldDir = path.join(base, 'perf-launcher')
+    const newDir = path.join(base, 'PipouLauncher')
+    if (!fs.existsSync(newDir) && fs.existsSync(oldDir)) {
+      try { fs.renameSync(oldDir, newDir) }
+      catch (_) { if (!fs.existsSync(newDir)) name = 'perf-launcher' }
+    }
+  } catch (_) {}
+  app.setName(name)
+})()
 
 const { detectHardware, pickProfile, computeRamMB, PROFILES } = require('./hardware')
 const { buildJvmPlan } = require('./jvm')

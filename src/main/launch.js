@@ -113,8 +113,8 @@ function buildLaunchArgs({ profile, gameDir, mcVersion, account, perfJvmArgs }) 
 
   const map = {
     natives_directory: nativesDir,
-    launcher_name: 'perf-launcher',
-    launcher_version: '0.1.28',
+    launcher_name: 'PipouLauncher',
+    launcher_version: '0.1.29',
     classpath,
     classpath_separator: SEP,
     library_directory: path.join(gameDir, 'libraries'),
