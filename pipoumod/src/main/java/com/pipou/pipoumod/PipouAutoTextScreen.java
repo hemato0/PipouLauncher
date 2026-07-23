@@ -161,6 +161,16 @@ public class PipouAutoTextScreen extends Screen {
 			return true;
 		}
 		if (editing >= 0) {
+			if (Screen.isPaste(key)) { // Ctrl+V : colle le presse-papiers dans la macro
+				String clip = this.minecraft.keyboardHandler.getClipboard();
+				if (clip != null && !clip.isBlank()) {
+					String v = PipouOptions.macros().get(editing).text();
+					String add = clip.replaceAll("[\\r\\n]", " ");
+					if (v.length() + add.length() > 128) add = add.substring(0, Math.max(0, 128 - v.length()));
+					if (!add.isEmpty()) PipouOptions.macroText(editing, v + add);
+				}
+				return true;
+			}
 			if (key == 259) { String v = PipouOptions.macros().get(editing).text(); if (!v.isEmpty()) PipouOptions.macroText(editing, v.substring(0, v.length() - 1)); return true; }
 			if (key == 256 || key == 257 || key == 335) { editing = -1; return true; }
 			return true;

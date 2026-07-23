@@ -319,11 +319,29 @@ public class PipouScreen extends Screen {
 	@Override
 	public boolean keyPressed(int key, int scan, int mods) {
 		if (editingKey != null) {
+			if (Screen.isPaste(key)) { // Ctrl+V dans un champ texte de réglage
+				String clip = this.minecraft.keyboardHandler.getClipboard();
+				if (clip != null && !clip.isBlank()) {
+					String v = PipouOptions.getStr(editingKey, ""), add = clip.replaceAll("[\\r\\n]", " ");
+					if (v.length() + add.length() > 96) add = add.substring(0, Math.max(0, 96 - v.length()));
+					if (!add.isEmpty()) PipouOptions.setStr(editingKey, v + add);
+				}
+				return true;
+			}
 			if (key == 259) { String v = PipouOptions.getStr(editingKey, ""); if (!v.isEmpty()) PipouOptions.setStr(editingKey, v.substring(0, v.length() - 1)); return true; }
 			if (key == 256 || key == 257 || key == 335) { editingKey = null; return true; }
 			return true;
 		}
 		if (searchFocused) {
+			if (Screen.isPaste(key)) { // Ctrl+V dans la recherche
+				String clip = this.minecraft.keyboardHandler.getClipboard();
+				if (clip != null && !clip.isBlank()) {
+					String add = clip.replaceAll("[\\r\\n]", " ");
+					if (searchQuery.length() + add.length() > 24) add = add.substring(0, Math.max(0, 24 - searchQuery.length()));
+					searchQuery += add; scroll = 0;
+				}
+				return true;
+			}
 			if (key == 259 && !searchQuery.isEmpty()) { searchQuery = searchQuery.substring(0, searchQuery.length() - 1); scroll = 0; return true; }
 			if (key == 256) { searchFocused = false; return true; }
 			if (key == 259) return true;

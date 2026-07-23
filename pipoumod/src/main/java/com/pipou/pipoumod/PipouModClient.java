@@ -8,6 +8,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -106,6 +110,16 @@ public class PipouModClient implements ClientModInitializer {
 			applyHitboxes(client);
 		});
 
+		// Bouton « PipouMod » ajouté à l'écran de PAUSE (Échap) -> ouvre le mod menu.
+		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+			if (screen instanceof PauseScreen) {
+				Button b = Button.builder(Component.literal("PipouMod"),
+						btn -> client.setScreen(new PipouScreen()))
+						.bounds(w - 96, 6, 90, 20).build();
+				Screens.getButtons(screen).add(b);
+			}
+		});
+
 		// Overlays HUD (FPS / coords / keystrokes / horloge…).
 		PipouHud.register();
 	}
@@ -125,20 +139,41 @@ public class PipouModClient implements ClientModInitializer {
 		}, "pipou-copy-screenshot").start();
 	}
 
-	/** Zoom : touche maintenue -> FOV réduit ; relâchée -> FOV restauré. */
+	// Zoom LISSE : le FOV interpole progressivement vers la cible (anti « violent »), et on
+	// écrit la valeur BRUTE pour descendre SOUS 30 (zoom plus loin, le set() clampe à [30,110]).
+	private static double zoomCur = 0, zoomSavedFov = 0;
+	private static boolean zoomActive = false;
 	private static void applyZoom(Minecraft mc) {
 		boolean want = PipouOptions.isEnabled("zoom") && zoomKey.isDown();
-		if (want) {
-			if (!zooming) { savedFov = mc.options.fov().get(); zooming = true; }
-			int level = Math.max(2, (int) PipouOptions.getNum("zoom.level", 3));
-			// Clamp au minimum VANILLA (30) : l'OptionInstance fov() a une plage [30,110]
-			// et rejette toute valeur hors bornes (log « Illegal option value » + retour à
-			// 70) — ce qui cassait le zoom au réglage par défaut (70/3 = 23).
-			mc.options.fov().set(Math.max(30, savedFov / level));
-		} else if (zooming) {
-			mc.options.fov().set(savedFov);
-			zooming = false;
+		if (want && !zoomActive) { zoomSavedFov = mc.options.fov().get(); zoomCur = zoomSavedFov; zoomActive = true; }
+		if (!zoomActive) return; // ni zoom ni animation de retour -> on ne touche pas au FOV
+		double level = Math.max(1.5, PipouOptions.getNum("zoom.level", 3)); // + level grand = + on zoome loin
+		double target = want ? zoomSavedFov / level : zoomSavedFov;
+		zoomCur += (target - zoomCur) * 0.30; // interpolation PROGRESSIVE (30%/tick)
+		if (!want && Math.abs(zoomCur - zoomSavedFov) < 0.5) { // retour terminé -> on rend la main
+			setFovRaw(mc, zoomSavedFov); zoomActive = false; return;
 		}
+		setFovRaw(mc, zoomCur);
+	}
+
+	// Force le FOV (OptionInstance<Integer>) en écrivant le champ interne (set() clampe [30,110]).
+	// Champ repéré par sa VALEUR = FOV courant (indépendant du nom remappé). Repli set() clampé.
+	private static void setFovRaw(Minecraft mc, double value) {
+		int iv = (int) Math.round(value), cur = mc.options.fov().get();
+		Object opt = mc.options.fov();
+		boolean done = false;
+		for (java.lang.reflect.Field f : opt.getClass().getDeclaredFields()) {
+			try {
+				f.setAccessible(true);
+				Object v = f.get(opt);
+				if (v instanceof Integer d && d == cur) {
+					f.set(opt, iv);
+					if (mc.options.fov().get() == iv) { done = true; break; }
+					f.set(opt, cur);
+				}
+			} catch (Throwable ignored) {}
+		}
+		if (!done) { try { mc.options.fov().set(Math.max(30, iv)); } catch (Throwable ignored) {} }
 	}
 
 	/** Auto-sprint : force le sprint quand on avance. */
