@@ -5,7 +5,8 @@
 	"client": [
 		"ChatComponentMixin",
 		"ScreenshotMixin",
-		"PlayerTabOverlayMixin"
+		"PlayerTabOverlayMixin",
+		"MouseHandlerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 0

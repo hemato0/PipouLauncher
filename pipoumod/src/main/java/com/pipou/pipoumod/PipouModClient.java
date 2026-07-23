@@ -27,6 +27,10 @@ public class PipouModClient implements ClientModInitializer {
 	private static KeyMapping openMenuKey;
 	private static KeyMapping copyShotKey;
 	private static KeyMapping zoomKey;
+	private static KeyMapping hudEditorKey;
+
+	/** true si la touche Zoom est actuellement maintenue (lu par MouseHandlerMixin pour la molette). */
+	public static boolean isZoomKeyDown() { return zoomKey != null && zoomKey.isDown(); }
 
 	// État Zoom (FOV) et Luminosité (gamma) pour restaurer la valeur d'origine.
 	private static boolean zooming = false;
@@ -76,6 +80,14 @@ public class PipouModClient implements ClientModInitializer {
 				GLFW.GLFW_KEY_SEMICOLON,
 				CATEGORY));
 
+		// Touche pour ouvrir l'éditeur de placement du HUD (non liée par défaut ; aussi
+		// accessible via la carte « Placer le HUD » du mod menu).
+		hudEditorKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+				"key.pipoumod.hud_editor",
+				InputConstants.Type.KEYSYM,
+				GLFW.GLFW_KEY_UNKNOWN,
+				CATEGORY));
+
 		// Commande client /pipoucopyshot (déclenchée par le bouton [Copier] du chat).
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) ->
 				dispatcher.register(ClientCommandManager.literal("pipoucopyshot").executes(ctx -> {
@@ -99,6 +111,7 @@ public class PipouModClient implements ClientModInitializer {
 			while (openMenuKey.consumeClick()) client.setScreen(new PipouScreen());
 			while (copyShotKey.consumeClick()) doCopyScreenshot();
 			while (autoTextKey.consumeClick()) client.setScreen(new PipouAutoTextScreen());
+			while (hudEditorKey.consumeClick()) client.setScreen(new PipouHudEditScreen());
 			if (client.player != null) {
 				PipouTracker.tick(client);
 				PipouPresence.tick(client);

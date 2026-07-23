@@ -54,6 +54,8 @@ public final class PipouOptions {
 		return v != null ? v : def;
 	}
 	public static void setNum(String id, double val) { nums.put(id, val); save(); }
+	public static boolean hasNum(String id) { return nums.containsKey(id); }
+	public static void clearNum(String id) { if (nums.remove(id) != null) save(); }
 
 	// Réglages texte (messages auto-texte…).
 	public static String getStr(String id, String def) {

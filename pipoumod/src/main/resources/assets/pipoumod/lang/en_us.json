@@ -3,5 +3,6 @@
 	"key.pipoumod.copy_screenshot": "Copy last screenshot",
 	"key.pipoumod.zoom": "Zoom (hold)",
 	"category.pipoumod": "PipouMod",
-	"key.pipoumod.autotext": "Open Auto-text menu"
+	"key.pipoumod.autotext": "Open Auto-text menu",
+	"key.pipoumod.hud_editor": "Open HUD layout editor"
 }

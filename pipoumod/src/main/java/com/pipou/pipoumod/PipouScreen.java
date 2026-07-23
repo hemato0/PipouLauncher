@@ -159,6 +159,13 @@ public class PipouScreen extends Screen {
 		PipouIcons.draw(g, m.icon(), x + cardW / 2, y + 33, 26, on ? C_PINK : C_TEXT); // logo teinté
 
 		int by = y + CARD_H - 17;
+		if (m.id().equals("hudlayout")) {
+			// Carte-action : ouvre l'éditeur de placement (pas un interrupteur).
+			boolean hOpen = in(mx, my, x + 7, by, cardW - 15, 13);
+			roundRect(g, x + 7, by, cardW - 15, 13, 6, hOpen ? C_PINK : C_PILL);
+			drawC(g, "Ouvrir  »", x + 7 + (cardW - 15) / 2, by + 3, hOpen ? C_INK : C_TEXT);
+			return;
+		}
 		boolean hasGear = m.options().length > 0 || m.id().equals("autotext");
 		boolean hGear = in(mx, my, x + 7, by, 14, 13);
 		roundRect(g, x + 7, by, 14, 13, 4, hGear && hasGear ? 0x44FF7EC9 : C_PILL);
@@ -262,6 +269,10 @@ public class PipouScreen extends Screen {
 			if (y + CARD_H < gridTop || y > gridBottom) continue;
 			Module m = list.get(i);
 			if (in(mx, my, x + cardW - 18, y + 4, 16, 14)) { PipouOptions.toggleFavorite(m.id()); return true; }
+			if (m.id().equals("hudlayout")) {
+				if (in(mx, my, x, y, cardW, CARD_H)) { this.minecraft.setScreen(new PipouHudEditScreen()); return true; }
+				continue; // carte-action : pas d'interrupteur à basculer
+			}
 			int by = y + CARD_H - 17;
 			boolean hasGear = m.options().length > 0 || m.id().equals("autotext");
 			if (hasGear && in(mx, my, x + 7, by, 14, 13)) {

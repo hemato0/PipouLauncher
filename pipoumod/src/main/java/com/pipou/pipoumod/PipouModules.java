@@ -23,6 +23,7 @@ public final class PipouModules {
 			// --- HUD ---
 			new Module("fps", "FPS", "HUD", "fps", false, new Opt[]{Opt.bool("fps.shadow", "Ombre du texte")}),
 			new Module("hudscale", "Taille du HUD", "HUD", "perspective", true, new Opt[]{Opt.slider("hud.scale", "Échelle", 1, 4, 2)}),
+			new Module("hudlayout", "Placer le HUD", "HUD", "perspective", true, NONE),
 			new Module("coords", "Coordonnées", "HUD", "coords", false, new Opt[]{
 					Opt.bool("coords.direction", "Ajouter la direction"),
 					Opt.bool("coords.biome", "Ajouter le biome"),
