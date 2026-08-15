@@ -341,6 +341,36 @@ body::before {
 .row .v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); font-size: 13px; }
 
+/* Nouveautés (changelog sur l'accueil) — timeline verticale rose→violet */
+.news { display: flex; flex-direction: column; gap: 15px; max-height: 380px; overflow-y: auto; padding-right: 8px; }
+.news-rel { position: relative; padding-left: 18px; }
+.news-rel::before {
+  content: ""; position: absolute; left: 4px; top: 9px; bottom: -9px; width: 1px;
+  background: linear-gradient(180deg, rgba(255,126,201,.5), rgba(168,85,247,.10));
+}
+.news-rel:last-child::before { display: none; }
+.news-dot {
+  position: absolute; left: 1px; top: 4px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 8px var(--gold-glow);
+}
+.news-ver {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 9px;
+  font-weight: 700; font-size: 13px; letter-spacing: .5px; color: var(--gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+.news-badge {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; font-weight: 800;
+  color: var(--gold-ink); background: var(--gold); border-radius: 6px; padding: 2px 7px;
+}
+.news-items { display: flex; flex-direction: column; gap: 8px; }
+.news-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.42; color: var(--text); }
+.news-tag {
+  flex: none; margin-top: 1px; font-size: 9.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .5px; border-radius: 5px; padding: 2px 6px; min-width: 46px; text-align: center;
+}
+.news-tag.new { color: #06251a; background: #33c270; }
+.news-tag.fix { color: #0d2338; background: #6fb8ff; }
+
 /* Profils */
 .profiles { display: flex; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
 .profile {

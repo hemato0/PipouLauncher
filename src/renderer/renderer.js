@@ -95,6 +95,60 @@ function renderHardware(hw) {
   ).join('')
 }
 
+// --- Nouveautés (changelog affiché sur l'accueil) ---
+// La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
+const CHANGELOG = [
+  { v: '0.1.41', items: [
+    { t: 'new', s: 'Cette liste des nouveautés sur l’accueil 💜' }
+  ] },
+  { v: '0.1.40', items: [
+    { t: 'fix', s: 'Emoji retiré : les joueurs sans le launcher voyaient un carré à la place.' }
+  ] },
+  { v: '0.1.39', items: [
+    { t: 'new', s: 'Capture d’écran : message propre dans le chat avec boutons [ Copier ] et [ Ouvrir ].' },
+    { t: 'fix', s: 'Bloc visé : affiche le vrai ID (ex. minecraft:tuff) et disparaît quand tu ne vises rien.' }
+  ] },
+  { v: '0.1.37', items: [
+    { t: 'new', s: 'Le chat est gardé pendant toute la session (plus vidé au changement de serveur).' },
+    { t: 'new', s: 'Ctrl + clic droit sur un message = le copier.' }
+  ] },
+  { v: '0.1.36', items: [
+    { t: 'new', s: 'Overlays du HUD en badges : fond, opacité réglable et fusion en une seule bulle.' },
+    { t: 'new', s: 'Boussole N / E / S / O en haut de l’écran.' }
+  ] },
+  { v: '0.1.35', items: [
+    { t: 'new', s: 'Freelook : regarder autour sans tourner le personnage (touche à lier).' },
+    { t: 'fix', s: 'Zoom rendu vraiment fluide (fini la saccade).' },
+    { t: 'fix', s: 'Macros : le texte long reste visible pendant la saisie.' }
+  ] },
+  { v: '0.1.34', items: [
+    { t: 'new', s: 'Éditeur de placement du HUD : glisse les overlays où tu veux.' },
+    { t: 'new', s: 'Molette pendant le zoom = régler la distance en direct.' }
+  ] },
+  { v: '0.1.33', items: [
+    { t: 'new', s: 'Ctrl + V dans les champs de texte du mod (macros, recherche).' },
+    { t: 'new', s: 'Bouton PipouMod ajouté dans le menu Échap.' }
+  ] }
+]
+
+function renderNews() {
+  const el = $('newsList')
+  if (!el) return
+  el.innerHTML = CHANGELOG.map((rel, i) => `
+    <div class="news-rel">
+      <div class="news-ver">
+        <span class="news-dot"></span>v${esc(rel.v)}
+        ${i === 0 ? '<span class="news-badge">Dernière</span>' : ''}
+      </div>
+      <ul class="news-items">
+        ${rel.items.map(it =>
+          `<li class="news-item"><span class="news-tag ${it.t === 'fix' ? 'fix' : 'new'}">${it.t === 'fix' ? 'Fix' : 'Nouveau'}</span><span>${esc(it.s)}</span></li>`
+        ).join('')}
+      </ul>
+    </div>
+  `).join('')
+}
+
 // --- Rendu des boutons de profil ---
 function renderProfiles() {
   $('profiles').innerHTML = state.profiles.map(p =>
@@ -1171,6 +1225,7 @@ async function bootRest(started) {
   }
   splashProgress(40, 'Versions de Minecraft…')
 
+  renderNews() // changelog statique : indépendant de l'analyse machine
   setupTabs()
   await setupVersions()
   refreshInstallStatus()
