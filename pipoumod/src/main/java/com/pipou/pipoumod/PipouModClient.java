@@ -97,12 +97,17 @@ public class PipouModClient implements ClientModInitializer {
 				GLFW.GLFW_KEY_UNKNOWN,
 				CATEGORY));
 
-		// Commande client /pipoucopyshot (déclenchée par le bouton [Copier] du chat).
-		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) ->
-				dispatcher.register(ClientCommandManager.literal("pipoucopyshot").executes(ctx -> {
-					doCopyScreenshot();
-					return 1;
-				})));
+		// Commandes client /pipoucopyshot et /pipouopenshot (boutons [Copier]/[Ouvrir] du chat).
+		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> {
+			dispatcher.register(ClientCommandManager.literal("pipoucopyshot").executes(ctx -> {
+				doCopyScreenshot();
+				return 1;
+			}));
+			dispatcher.register(ClientCommandManager.literal("pipouopenshot").executes(ctx -> {
+				doOpenScreenshot();
+				return 1;
+			}));
+		});
 
 		// Connexion à un monde/serveur : remet la session à zéro.
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -173,6 +178,26 @@ public class PipouModClient implements ClientModInitializer {
 						.withStyle(s -> s.withColor(ok ? 0xFF7EC9 : 0xFFAA88)), false);
 			});
 		}, "pipou-copy-screenshot").start();
+	}
+
+	/** Ouvre la dernière capture dans la visionneuse par défaut de l'OS (AWT, indépendant de la version MC). */
+	private static void doOpenScreenshot() {
+		new Thread(() -> {
+			java.io.File f = PipouScreenshot.lastFile;
+			boolean ok = false;
+			if (f != null && f.isFile()) {
+				try { java.awt.Desktop.getDesktop().open(f); ok = true; } catch (Throwable ignored) {}
+			}
+			Minecraft mc = Minecraft.getInstance();
+			final boolean done = ok;
+			mc.execute(() -> {
+				if (mc.player == null) return;
+				mc.player.displayClientMessage(Component.literal(done
+								? "Capture ouverte."
+								: "Aucune capture récente à ouvrir.")
+						.withStyle(s -> s.withColor(done ? 0xFF7EC9 : 0xFFAA88)), true);
+			});
+		}, "pipou-open-screenshot").start();
 	}
 
 	/** Auto-sprint : force le sprint quand on avance. */

@@ -2,6 +2,7 @@ package com.pipou.pipoumod;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 import javax.imageio.ImageIO;
 import java.awt.Image;
@@ -32,16 +33,30 @@ public final class PipouScreenshot {
 	 *  dernière capture » ne soit jamais silencieusement inopérante. */
 	public static Consumer<Component> wrap(Consumer<Component> original) {
 		return (msg) -> {
+			boolean found = false;
 			try {
 				Matcher m = PNG.matcher(msg.getString());
 				if (m.find()) {
 					File shots = new File(Minecraft.getInstance().gameDirectory, "screenshots");
 					lastFile = new File(shots, new File(m.group(1)).getName());
+					found = true;
 				}
 			} catch (Throwable ignored) {
 			}
-			original.accept(msg);
+			// Capture réussie -> message PROPRE avec boutons cliquables (au lieu du texte vanilla verbeux).
+			if (found && PipouOptions.isEnabled("chat.copyscreen")) original.accept(badge());
+			else original.accept(msg);
 		};
+	}
+
+	// Badge de chat : « Capture enregistrée  [ Copier ]  [ Ouvrir ] » (boutons RUN_COMMAND cliquables).
+	private static Component badge() {
+		MutableComponent out = Component.empty();
+		out.append(Component.literal("Capture enregistrée  ").withStyle(s -> s.withColor(0xB8A5D8)));
+		out.append(PipouClick.button("[ Copier ]", 0xFF7EC9, "/pipoucopyshot"));
+		out.append(Component.literal("  "));
+		out.append(PipouClick.button("[ Ouvrir ]", 0xB8A5D8, "/pipouopenshot"));
+		return out;
 	}
 
 	/** Copie l'image de la dernière capture dans le presse-papiers système (AWT). */

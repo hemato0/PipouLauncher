@@ -246,7 +246,10 @@ public class PipouHud {
 				if (mc.level != null)
 					out.add(new Line(Component.literal("Lumière : " + mc.level.getMaxLocalRawBrightness(p.blockPosition())), WHITE, true));
 			}
-			case "target" -> out.add(new Line(Component.literal("Visé : " + targetBlock(mc)), WHITE, true));
+			case "target" -> {
+				String tb = targetBlockId(mc);
+				if (tb != null) out.add(new Line(Component.literal("Visé : " + tb), WHITE, true)); // null = rien visé -> overlay masqué
+			}
 			case "session" -> out.add(new Line(Component.literal("Session : " + sessionTime()), LAV, true));
 			case "xp" -> out.add(new Line(Component.literal("XP : niveau " + p.experienceLevel), WHITE, true));
 			case "serverip" -> out.add(new Line(Component.literal("Serveur : " + serverName(mc)), LAV, true));
@@ -287,10 +290,18 @@ public class PipouHud {
 		return String.format("%d:%02d", s / 60, s % 60);
 	}
 
-	private static String targetBlock(Minecraft mc) {
-		if (mc.level != null && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bhr)
-			return mc.level.getBlockState(bhr.getBlockPos()).getBlock().getName().getString();
-		return "—";
+	// ID de registre du bloc visé (ex. « minecraft:tuff »), ou null si on ne vise AUCUN bloc
+	// (hitResult est un BlockHitResult même en visant le vide -> on exige le type BLOCK).
+	private static String targetBlockId(Minecraft mc) {
+		if (mc.level != null
+				&& mc.hitResult != null
+				&& mc.hitResult.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+				&& mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult bhr) {
+			net.minecraft.world.level.block.Block b = mc.level.getBlockState(bhr.getBlockPos()).getBlock();
+			net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(b);
+			return id != null ? id.toString() : null;
+		}
+		return null;
 	}
 
 	private static String serverName(Minecraft mc) {
