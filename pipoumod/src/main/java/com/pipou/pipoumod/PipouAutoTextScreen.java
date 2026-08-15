@@ -99,7 +99,9 @@ public class PipouAutoTextScreen extends Screen {
 		g.fill(tx, y + 4, tx + tw, y + 20, C_DARK);
 		border(g, tx, y + 4, tw, 16, ed ? C_PINK : C_PINK_DIM);
 		String txt = m.text().isEmpty() && !ed ? "(clique et tape ton texte)" : m.text() + (ed ? "_" : "");
-		draw(g, clip(txt, tw - 8), tx + 4, y + 8, m.text().isEmpty() && !ed ? C_MUTED : C_TEXT, false);
+		// En édition : tronque par la GAUCHE pour garder la FIN (le curseur) visible sur un texte long.
+		String fit = ed ? clipTail(txt, tw - 8) : clip(txt, tw - 8);
+		draw(g, fit, tx + 4, y + 8, m.text().isEmpty() && !ed ? C_MUTED : C_TEXT, false);
 		// bouton touche
 		int kx = px + pw - 176, kw = 120;
 		boolean cap = capturing == i;
@@ -188,6 +190,12 @@ public class PipouAutoTextScreen extends Screen {
 		if (tw(s) <= maxPx) return s;
 		while (s.length() > 1 && tw(s + "...") > maxPx) s = s.substring(0, s.length() - 1);
 		return s + "...";
+	}
+	// Tronque par la GAUCHE (garde la FIN) : le curseur en bout de ligne reste visible en édition.
+	private String clipTail(String s, int maxPx) {
+		if (tw(s) <= maxPx) return s;
+		while (s.length() > 1 && tw("..." + s) > maxPx) s = s.substring(1);
+		return "..." + s;
 	}
 
 	// --- police + helpers ---

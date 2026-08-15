@@ -1,5 +1,6 @@
 package com.pipou.pipoumod.mixin;
 
+import com.pipou.pipoumod.PipouFreelook;
 import com.pipou.pipoumod.PipouModClient;
 import com.pipou.pipoumod.PipouOptions;
 import net.minecraft.client.Minecraft;
@@ -33,5 +34,13 @@ public class MouseHandlerMixin {
 		lvl = Math.max(1.5, Math.min(30.0, lvl));
 		PipouOptions.setNum("zoom.level", lvl);
 		ci.cancel();
+	}
+
+	// Freelook : turnPlayer (appelé CHAQUE frame) vient de tourner le joueur avec la souris.
+	// Au RETURN, on récupère ce delta pour la caméra libre puis on re-gèle le joueur -> fluide
+	// par frame, le personnage ne tourne pas. Non-requis : sans effet si turnPlayer diffère.
+	@Inject(method = "turnPlayer", at = @At("RETURN"))
+	private void pipou$freelook(CallbackInfo ci) {
+		if (PipouFreelook.isActive()) PipouFreelook.captureFrame(Minecraft.getInstance());
 	}
 }

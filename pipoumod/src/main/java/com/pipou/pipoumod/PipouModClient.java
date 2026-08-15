@@ -28,13 +28,12 @@ public class PipouModClient implements ClientModInitializer {
 	private static KeyMapping copyShotKey;
 	private static KeyMapping zoomKey;
 	private static KeyMapping hudEditorKey;
+	private static KeyMapping freelookKey;
 
 	/** true si la touche Zoom est actuellement maintenue (lu par MouseHandlerMixin pour la molette). */
 	public static boolean isZoomKeyDown() { return zoomKey != null && zoomKey.isDown(); }
 
-	// État Zoom (FOV) et Luminosité (gamma) pour restaurer la valeur d'origine.
-	private static boolean zooming = false;
-	private static int savedFov = 70;
+	// État Luminosité (gamma) pour restaurer la valeur d'origine.
 	private static boolean brightening = false;
 	private static double savedGamma = 0.5;
 	private static KeyMapping autoTextKey;
@@ -88,6 +87,14 @@ public class PipouModClient implements ClientModInitializer {
 				GLFW.GLFW_KEY_UNKNOWN,
 				CATEGORY));
 
+		// Touche Freelook (maintenir) : regarder autour sans tourner le personnage.
+		// Non liée par défaut (à assigner dans Options -> Commandes) pour éviter tout conflit.
+		freelookKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+				"key.pipoumod.freelook",
+				InputConstants.Type.KEYSYM,
+				GLFW.GLFW_KEY_UNKNOWN,
+				CATEGORY));
+
 		// Commande client /pipoucopyshot (déclenchée par le bouton [Copier] du chat).
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) ->
 				dispatcher.register(ClientCommandManager.literal("pipoucopyshot").executes(ctx -> {
@@ -118,9 +125,14 @@ public class PipouModClient implements ClientModInitializer {
 				applyAutoSprint(client);
 				handleMacros(client);
 			}
-			applyZoom(client);
+			// Zoom : plus de pilotage par tick — GameRendererMixin interpole le FOV PAR FRAME
+			// (PipouZoom) pour un zoom lisse quel que soit le FPS.
 			applyBrightness(client);
 			applyHitboxes(client);
+			// Freelook : (dés)active selon la touche maintenue ; la capture du delta souris se
+			// fait par frame dans MouseHandlerMixin (turnPlayer).
+			PipouFreelook.setHeld(client, PipouOptions.isEnabled("freelook")
+					&& freelookKey.isDown() && client.screen == null && client.player != null);
 		});
 
 		// Bouton « PipouMod » ajouté à l'écran de PAUSE (Échap) -> ouvre le mod menu.
@@ -150,43 +162,6 @@ public class PipouModClient implements ClientModInitializer {
 						.withStyle(s -> s.withColor(ok ? 0xFF7EC9 : 0xFFAA88)), false);
 			});
 		}, "pipou-copy-screenshot").start();
-	}
-
-	// Zoom LISSE : le FOV interpole progressivement vers la cible (anti « violent »), et on
-	// écrit la valeur BRUTE pour descendre SOUS 30 (zoom plus loin, le set() clampe à [30,110]).
-	private static double zoomCur = 0, zoomSavedFov = 0;
-	private static boolean zoomActive = false;
-	private static void applyZoom(Minecraft mc) {
-		boolean want = PipouOptions.isEnabled("zoom") && zoomKey.isDown();
-		if (want && !zoomActive) { zoomSavedFov = mc.options.fov().get(); zoomCur = zoomSavedFov; zoomActive = true; }
-		if (!zoomActive) return; // ni zoom ni animation de retour -> on ne touche pas au FOV
-		double level = Math.max(1.5, PipouOptions.getNum("zoom.level", 3)); // + level grand = + on zoome loin
-		double target = want ? zoomSavedFov / level : zoomSavedFov;
-		zoomCur += (target - zoomCur) * 0.30; // interpolation PROGRESSIVE (30%/tick)
-		if (!want && Math.abs(zoomCur - zoomSavedFov) < 0.5) { // retour terminé -> on rend la main
-			setFovRaw(mc, zoomSavedFov); zoomActive = false; return;
-		}
-		setFovRaw(mc, zoomCur);
-	}
-
-	// Force le FOV (OptionInstance<Integer>) en écrivant le champ interne (set() clampe [30,110]).
-	// Champ repéré par sa VALEUR = FOV courant (indépendant du nom remappé). Repli set() clampé.
-	private static void setFovRaw(Minecraft mc, double value) {
-		int iv = (int) Math.round(value), cur = mc.options.fov().get();
-		Object opt = mc.options.fov();
-		boolean done = false;
-		for (java.lang.reflect.Field f : opt.getClass().getDeclaredFields()) {
-			try {
-				f.setAccessible(true);
-				Object v = f.get(opt);
-				if (v instanceof Integer d && d == cur) {
-					f.set(opt, iv);
-					if (mc.options.fov().get() == iv) { done = true; break; }
-					f.set(opt, cur);
-				}
-			} catch (Throwable ignored) {}
-		}
-		if (!done) { try { mc.options.fov().set(Math.max(30, iv)); } catch (Throwable ignored) {} }
 	}
 
 	/** Auto-sprint : force le sprint quand on avance. */

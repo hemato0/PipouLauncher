@@ -45,6 +45,7 @@ public final class PipouModules {
 			new Module("potions", "Potions", "PvP", "potions", false, NONE),
 			// --- Rendu ---
 			new Module("zoom", "Zoom", "Rendu", "zoom", false, new Opt[]{Opt.slider("zoom.level", "Niveau de zoom", 2, 8, 3)}),
+			new Module("freelook", "Freelook", "Rendu", "perspective", true, NONE),
 			new Module("brightness", "Luminosité +", "Rendu", "brightness", false, NONE),
 			new Module("autosprint", "Auto-sprint", "Rendu", "autosprint", true, NONE),
 			new Module("hitbox", "Hitbox", "Rendu", "nametags", true, NONE),

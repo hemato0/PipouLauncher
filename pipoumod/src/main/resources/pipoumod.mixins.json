@@ -6,7 +6,9 @@
 		"ChatComponentMixin",
 		"ScreenshotMixin",
 		"PlayerTabOverlayMixin",
-		"MouseHandlerMixin"
+		"MouseHandlerMixin",
+		"GameRendererMixin",
+		"CameraMixin"
 	],
 	"injectors": {
 		"defaultRequire": 0
