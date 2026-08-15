@@ -62,7 +62,6 @@ public final class PipouModules {
 			new Module("autotext", "Auto-texte", "Chat", "autotext", true, NONE),
 			new Module("chatkeep", "Garder le chat (session)", "Chat", "chat_stacking", true, NONE),
 			new Module("chatcopy", "Copier un message (Ctrl+clic droit)", "Chat", "chat_copyscreen", true, NONE),
-			new Module("emoji", "Emojis chat", "Chat", "emoji", true, NONE),
 			// --- Tab ---
 			new Module("tabbadge", "Badge Pipou (tab)", "Tab", "tab_pipou", false, NONE)
 	};

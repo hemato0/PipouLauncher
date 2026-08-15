@@ -10,9 +10,7 @@
 		"GameRendererMixin",
 		"CameraMixin",
 		"ChatComponentAccessor",
-		"ChatScreenMixin",
-		"ChatScreenAccessor",
-		"ClientPacketListenerMixin"
+		"ChatScreenMixin"
 	],
 	"injectors": {
 		"defaultRequire": 0

@@ -1,7 +1,6 @@
 package com.pipou.pipoumod.mixin;
 
 import com.pipou.pipoumod.PipouChat;
-import com.pipou.pipoumod.PipouEmoji;
 import com.pipou.pipoumod.PipouOptions;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.client.GuiMessageTag;
@@ -46,11 +45,9 @@ public class ChatComponentMixin {
 		boolean chat = PipouOptions.isEnabled("chat");
 		boolean ts = chat && PipouOptions.isEnabled("chat.timestamps");
 		boolean stack = chat && PipouOptions.isEnabled("chat.stacking");
-		boolean emoji = PipouOptions.isEnabled("emoji");
-		if (!ts && !stack && !emoji) return;
+		if (!ts && !stack) return;
 
-		Component base = emoji ? PipouEmoji.process(component) : component;
-		Component decorated = ts ? PipouChat.withTimestamp(base) : base;
+		Component decorated = ts ? PipouChat.withTimestamp(component) : component;
 		String key = component.getString(); // clé BRUTE (ni horodatage ni compteur)
 
 		// Doublon consécutif : on empile sur le dernier message (compteur), pas de nouvelle
@@ -69,10 +66,10 @@ public class ChatComponentMixin {
 			return;
 		}
 
-		// Message neuf : on mémorise, et si un rendu a changé (horodatage/emoji) on ré-ajoute.
+		// Message neuf : on mémorise, et si l'horodatage a changé le rendu, on ré-ajoute.
 		PipouChat.lastKey = key;
 		PipouChat.lastCount = 1;
-		if (ts || emoji) {
+		if (ts) {
 			PipouChat.reentrant = true;
 			try {
 				((ChatComponent) (Object) this).addMessage(decorated, sig, tag);
@@ -82,7 +79,7 @@ public class ChatComponentMixin {
 			PipouChat.lastAdded = decorated; // la ligne [0] ajoutée par le jeu == decorated
 			ci.cancel();
 		} else {
-			// stacking ON, horodatage/emoji OFF : le jeu ajoute l'original -> c'est notre dernier.
+			// stacking ON, horodatage OFF : le jeu ajoute l'original -> c'est notre dernier.
 			PipouChat.lastAdded = component;
 		}
 	}

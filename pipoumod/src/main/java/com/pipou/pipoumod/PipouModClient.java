@@ -10,9 +10,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
-import com.pipou.pipoumod.mixin.ChatScreenAccessor;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -44,7 +42,6 @@ public class PipouModClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		PipouOptions.load();
-		PipouEmoji.load();
 		PipouIcons.load();
 
 		// URL du service de présence (badge Pipou dans le tab) : lue sans recompiler,
@@ -149,15 +146,6 @@ public class PipouModClient implements ClientModInitializer {
 						btn -> client.setScreen(new PipouScreen()))
 						.bounds(w - 96, 6, 90, 20).build();
 				Screens.getButtons(screen).add(b);
-			}
-			// Bouton emoji dans le chat -> ouvre le sélecteur (insère :nom: dans la saisie).
-			if (screen instanceof ChatScreen && PipouOptions.isEnabled("emoji")) {
-				Button eb = Button.builder(Component.literal(":)"), btn -> {
-					String cur = "";
-					try { cur = ((ChatScreenAccessor) (Object) screen).pipou$input().getValue(); } catch (Throwable ignored) {}
-					client.setScreen(new PipouEmojiPickerScreen(cur));
-				}).bounds(w - 24, h - 32, 20, 14).build();
-				Screens.getButtons(screen).add(eb);
 			}
 		});
 
