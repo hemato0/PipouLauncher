@@ -188,16 +188,20 @@ async function buildState(hw, profile) {
 }
 
 // Analyse la machine et renvoie un état complet prêt à afficher.
+// Le profil de perf CHOISI manuellement (config.perfProfile) prime sur l'auto-détection,
+// et survit donc aux redémarrages. Auto-détection seulement au 1er lancement (ou choix invalide).
 ipcMain.handle('analyze', async () => {
   const hw = await getHardware()
-  const profile = pickProfile(hw)
+  const cfg = await getConfig()
+  const profile = (cfg.perfProfile && PROFILES[cfg.perfProfile]) ? PROFILES[cfg.perfProfile] : pickProfile(hw)
   return { ...(await buildState(hw, profile)), profiles: Object.values(PROFILES) }
 })
 
-// Recalcule tout quand l'utilisateur change de profil manuellement.
+// Recalcule tout quand l'utilisateur change de profil manuellement — ET persiste le choix.
 ipcMain.handle('recompute', async (_evt, { profileId }) => {
   const hw = await getHardware()
   const profile = PROFILES[profileId] || pickProfile(hw)
+  if (PROFILES[profileId]) await setConfig({ perfProfile: profileId }) // mémorise le choix (persiste au reboot)
   return await buildState(hw, profile)
 })
 

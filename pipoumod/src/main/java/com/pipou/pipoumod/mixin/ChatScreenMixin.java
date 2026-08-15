@@ -21,11 +21,23 @@ public class ChatScreenMixin {
 		if (!PipouOptions.isEnabled("chatcopy")) return;
 		Minecraft mc = Minecraft.getInstance();
 		String s = PipouChatCopy.messageAt(mc, mx, my);
-		if (s != null && !s.isBlank()) {
-			mc.keyboardHandler.setClipboard(s);
-			if (mc.player != null)
-				mc.player.displayClientMessage(Component.literal("Message copié ✓").withStyle(st -> st.withColor(0xFF7EC9)), true);
-			cir.setReturnValue(true);
+		if (mc.player != null) {
+			if (s != null && !s.isBlank()) {
+				mc.keyboardHandler.setClipboard(s);
+				mc.player.displayClientMessage(Component.literal("Message copié ✓ : " + trim(s))
+						.withStyle(st -> st.withColor(0xFF7EC9)), false);
+			} else {
+				// Le clic Ctrl+droit A ÉTÉ détecté mais aucune ligne trouvée sous le curseur
+				// (diagnostic : distingue « clic non capté » de « ligne introuvable »).
+				mc.player.displayClientMessage(Component.literal("Aucun message sous le curseur (vise le texte d'une ligne).")
+						.withStyle(st -> st.withColor(0xFFFFAA66)), false);
+			}
 		}
+		cir.setReturnValue(true); // on consomme le clic droit dans tous les cas
+	}
+
+	private static String trim(String s) {
+		s = s.strip();
+		return s.length() > 40 ? s.substring(0, 40) + "…" : s;
 	}
 }

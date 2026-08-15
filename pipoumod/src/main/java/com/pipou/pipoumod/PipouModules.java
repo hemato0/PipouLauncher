@@ -24,8 +24,7 @@ public final class PipouModules {
 			new Module("fps", "FPS", "HUD", "fps", false, new Opt[]{Opt.bool("fps.shadow", "Ombre du texte")}),
 			new Module("hudscale", "Taille du HUD", "HUD", "perspective", true, new Opt[]{Opt.slider("hud.scale", "Échelle", 1, 4, 2)}),
 			new Module("hudstyle", "Fond en badge", "HUD", "perspective", true, new Opt[]{
-					Opt.slider("hud.opacity", "Opacité du fond", 0, 10, 6),
-					Opt.bool("hud.merge", "Fusionner la colonne en une bulle")}),
+					Opt.slider("hud.opacity", "Opacité du fond", 0, 10, 6)}),
 			new Module("hudlayout", "Placer le HUD", "HUD", "perspective", true, NONE),
 			new Module("compass", "Boussole", "HUD", "direction", true, new Opt[]{Opt.bool("compass.degrees", "Afficher les degrés")}),
 			new Module("coords", "Coordonnées", "HUD", "coords", false, new Opt[]{
@@ -58,10 +57,10 @@ public final class PipouModules {
 					Opt.bool("chat.timestamps", "Horodatage des messages"),
 					Opt.bool("chat.timestamps.seconds", "   > avec les secondes"),
 					Opt.bool("chat.stacking", "Empiler les doublons (xN)"),
-					Opt.bool("chat.copyscreen", "Bouton « Copier » sur les captures")}),
+					Opt.bool("chatkeep", "Garder le chat toute la session"),
+					Opt.bool("chatcopy", "Copier un message (Ctrl+clic droit)"),
+					Opt.bool("chat.copyscreen", "Boutons Copier / Ouvrir sur les captures")}),
 			new Module("autotext", "Auto-texte", "Chat", "autotext", true, NONE),
-			new Module("chatkeep", "Garder le chat (session)", "Chat", "chat_stacking", true, NONE),
-			new Module("chatcopy", "Copier un message (Ctrl+clic droit)", "Chat", "chat_copyscreen", true, NONE),
 			// --- Tab ---
 			new Module("tabbadge", "Badge Pipou (tab)", "Tab", "tab_pipou", false, NONE)
 	};

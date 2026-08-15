@@ -98,6 +98,11 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.42', items: [
+    { t: 'new', s: 'Éditeur de HUD refait, plus propre : rapproche deux overlays pour les fusionner en une bulle.' },
+    { t: 'new', s: 'Le profil de performance choisi est mémorisé (il reste au redémarrage).' },
+    { t: 'fix', s: 'Menu du mod rangé : les options de chat sont regroupées.' }
+  ] },
   { v: '0.1.41', items: [
     { t: 'new', s: 'Cette liste des nouveautés sur l’accueil 💜' }
   ] },

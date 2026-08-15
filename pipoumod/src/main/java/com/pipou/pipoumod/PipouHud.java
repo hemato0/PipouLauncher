@@ -49,9 +49,8 @@ public class PipouHud {
 				: FAM_COL;
 	}
 
-	// Unité de rendu = un dashboard positionné (x,y,w,h). inCol = dans la colonne par défaut
-	// (candidat à la fusion en une seule bulle). empty = activé mais sans contenu (éditeur).
-	private record Unit(String id, int x, int y, int w, int h, boolean empty, boolean inCol) {}
+	// Unité de rendu = un dashboard positionné (x,y,w,h). empty = activé mais sans contenu (éditeur).
+	private record Unit(String id, int x, int y, int w, int h, boolean empty) {}
 	private static String label(String id) {
 		PipouModules.Module m = PipouModules.byId(id);
 		return m != null ? m.label() : id;
@@ -118,7 +117,6 @@ public class PipouHud {
 			int h = empty ? 13 : size[1];
 
 			int x, y;
-			boolean inCol = false;
 			if (id.equals(dragId)) {
 				x = clamp(Math.round(dragFx * vw), 0, Math.max(0, vw - w));
 				y = clamp(Math.round(dragFy * vh), 0, Math.max(0, vh - h));
@@ -132,32 +130,38 @@ public class PipouHud {
 					case FAM_RIGHT -> { x = clamp(vw - w - 4, 0, Math.max(0, vw - w)); y = clamp(vh / 2 - h / 2, 0, Math.max(0, vh - h)); }
 					case FAM_BOTTOM -> { x = 6; y = clamp(vh - 92, 0, Math.max(0, vh - h)); }
 					case FAM_TOP -> { x = clamp(vw / 2 - w / 2, 0, Math.max(0, vw - w)); y = 4; }
-					default -> {
-						int gap = id.equals("potions") ? 4 : 0;
-						x = 4; y = stackY + gap; stackY = y + h;
-						inCol = true; // membre de la colonne par défaut (fusionnable)
-					}
+					default -> { int gap = id.equals("potions") ? 4 : 0; x = 4; y = clamp(stackY + gap, 0, Math.max(0, vh - h)); stackY = y + h; }
 				}
 			}
-			units.add(new Unit(id, x, y, w, h, empty, inCol));
+			units.add(new Unit(id, x, y, w, h, empty));
 		}
 
-		// --- Passe 2 : fonds (badges) — arrière-plan translucide arrondi, opacité réglable ---
-		if (PipouOptions.isEnabled("hudstyle")) {
+		// --- Passe 2 : fonds (badges) — FUSION PAR PROXIMITÉ (union-find) : les overlays proches
+		// partagent une seule bulle. Colonne contiguë = 1 bulle ; module éloigné = sa propre bulle.
+		// -> rapprocher deux modules dans l'éditeur = les fusionner ; les éloigner = les séparer. ---
+		if (PipouOptions.isEnabled("hudstyle") && !units.isEmpty()) {
 			int op = (int) Math.max(0, Math.min(10, PipouOptions.getNum("hud.opacity", 6)));
 			int alpha = Math.round(op / 10f * 235f);
 			if (alpha > 4) {
 				int col = (alpha << 24) | 0x1A1026;
-				boolean merge = PipouOptions.isEnabled("hud.merge");
-				if (merge) {
-					// Fusion : un seul badge englobe tous les membres de la colonne par défaut.
-					int minx = Integer.MAX_VALUE, miny = Integer.MAX_VALUE, maxx = Integer.MIN_VALUE, maxy = Integer.MIN_VALUE, n = 0;
-					for (Unit u : units) if (u.inCol()) { minx = Math.min(minx, u.x()); miny = Math.min(miny, u.y()); maxx = Math.max(maxx, u.x() + u.w()); maxy = Math.max(maxy, u.y() + u.h()); n++; }
-					if (n > 0) badge(g, minx - 3, miny - 2, maxx + 3, maxy + 2, col);
-					for (Unit u : units) if (!u.inCol()) badge(g, u.x() - 3, u.y() - 2, u.x() + u.w() + 3, u.y() + u.h() + 2, col);
-				} else {
-					for (Unit u : units) badge(g, u.x() - 3, u.y() - 2, u.x() + u.w() + 3, u.y() + u.h() + 2, col);
+				int n = units.size();
+				int[] par = new int[n];
+				for (int i = 0; i < n; i++) par[i] = i;
+				for (int i = 0; i < n; i++)
+					for (int j = i + 1; j < n; j++)
+						if (near(units.get(i), units.get(j))) union(par, i, j);
+				java.util.Map<Integer, int[]> cl = new java.util.LinkedHashMap<>();
+				for (int i = 0; i < n; i++) {
+					int r = find(par, i);
+					Unit u = units.get(i);
+					int[] b = cl.get(r);
+					if (b == null) cl.put(r, new int[]{ u.x(), u.y(), u.x() + u.w(), u.y() + u.h() });
+					else {
+						b[0] = Math.min(b[0], u.x()); b[1] = Math.min(b[1], u.y());
+						b[2] = Math.max(b[2], u.x() + u.w()); b[3] = Math.max(b[3], u.y() + u.h());
+					}
 				}
+				for (int[] b : cl.values()) badge(g, b[0] - 3, b[1] - 2, b[2] + 3, b[3] + 2, col);
 			}
 		}
 
@@ -168,6 +172,16 @@ public class PipouHud {
 			lastBoxes.put(u.id(), new int[]{ u.x(), u.y(), u.w(), u.h() });
 		}
 	}
+
+	// Deux overlays « proches » (écart ≤ GAP px sur les deux axes) fusionnent dans une bulle.
+	// On ne gonfle qu'UNE boîte de GAP -> seuil = GAP réel (et non 2×GAP).
+	private static final int GAP = 7;
+	private static boolean near(Unit a, Unit b) {
+		return a.x() < (b.x() + b.w() + GAP) && b.x() < (a.x() + a.w() + GAP)
+				&& a.y() < (b.y() + b.h() + GAP) && b.y() < (a.y() + a.h() + GAP);
+	}
+	private static int find(int[] p, int i) { while (p[i] != i) { p[i] = p[p[i]]; i = p[i]; } return i; }
+	private static void union(int[] p, int a, int b) { p[find(p, a)] = find(p, b); }
 
 	// Fond « badge » arrondi (coins 2px) semi-transparent.
 	private static void badge(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
