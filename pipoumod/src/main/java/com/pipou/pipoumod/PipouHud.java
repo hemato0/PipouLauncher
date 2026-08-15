@@ -33,17 +33,25 @@ public class PipouHud {
 	private static final int INK = 0xFF3A0F30;
 
 	// Familles de position par défaut.
-	private static final int FAM_COL = 0, FAM_RIGHT = 1, FAM_BOTTOM = 2;
+	private static final int FAM_COL = 0, FAM_RIGHT = 1, FAM_BOTTOM = 2, FAM_TOP = 3;
+	private static final int COMPASS_W = 150; // largeur de la barre boussole
 
-	/** Ordre d'empilement par défaut (colonne haut-gauche), puis potions, armure, keystrokes. */
+	/** Ordre d'empilement par défaut (colonne haut-gauche), puis potions, armure, keystrokes, boussole. */
 	public static final String[] DASHES = {
 			"fps", "coords", "ping", "clock", "speed", "memory", "light", "target",
-			"session", "xp", "serverip", "hunger", "cps", "potions", "armor", "keystrokes"
+			"session", "xp", "serverip", "hunger", "cps", "potions", "armor", "keystrokes", "compass"
 	};
 
 	private static int fam(String id) {
-		return id.equals("armor") ? FAM_RIGHT : id.equals("keystrokes") ? FAM_BOTTOM : FAM_COL;
+		return id.equals("armor") ? FAM_RIGHT
+				: id.equals("keystrokes") ? FAM_BOTTOM
+				: id.equals("compass") ? FAM_TOP
+				: FAM_COL;
 	}
+
+	// Unité de rendu = un dashboard positionné (x,y,w,h). inCol = dans la colonne par défaut
+	// (candidat à la fusion en une seule bulle). empty = activé mais sans contenu (éditeur).
+	private record Unit(String id, int x, int y, int w, int h, boolean empty, boolean inCol) {}
 	private static String label(String id) {
 		PipouModules.Module m = PipouModules.byId(id);
 		return m != null ? m.label() : id;
@@ -97,6 +105,9 @@ public class PipouHud {
 	 */
 	public static void layout(GuiGraphics g, Minecraft mc, int vw, int vh, boolean editor) {
 		lastBoxes.clear();
+
+		// --- Passe 1 : position + taille de chaque dashboard activé ---
+		List<Unit> units = new ArrayList<>();
 		int stackY = 4;
 		for (String id : DASHES) {
 			if (!PipouOptions.isEnabled(id)) continue;
@@ -107,6 +118,7 @@ public class PipouHud {
 			int h = empty ? 13 : size[1];
 
 			int x, y;
+			boolean inCol = false;
 			if (id.equals(dragId)) {
 				x = clamp(Math.round(dragFx * vw), 0, Math.max(0, vw - w));
 				y = clamp(Math.round(dragFy * vh), 0, Math.max(0, vh - h));
@@ -119,17 +131,54 @@ public class PipouHud {
 				switch (fam(id)) {
 					case FAM_RIGHT -> { x = clamp(vw - w - 4, 0, Math.max(0, vw - w)); y = clamp(vh / 2 - h / 2, 0, Math.max(0, vh - h)); }
 					case FAM_BOTTOM -> { x = 6; y = clamp(vh - 92, 0, Math.max(0, vh - h)); }
+					case FAM_TOP -> { x = clamp(vw / 2 - w / 2, 0, Math.max(0, vw - w)); y = 4; }
 					default -> {
 						int gap = id.equals("potions") ? 4 : 0;
 						x = 4; y = stackY + gap; stackY = y + h;
+						inCol = true; // membre de la colonne par défaut (fusionnable)
 					}
 				}
 			}
-
-			if (empty) ghost(g, mc, x, y, w, h, label(id));
-			else drawDash(g, mc, id, x, y);
-			lastBoxes.put(id, new int[]{ x, y, w, h });
+			units.add(new Unit(id, x, y, w, h, empty, inCol));
 		}
+
+		// --- Passe 2 : fonds (badges) — arrière-plan translucide arrondi, opacité réglable ---
+		if (PipouOptions.isEnabled("hudstyle")) {
+			int op = (int) Math.max(0, Math.min(10, PipouOptions.getNum("hud.opacity", 6)));
+			int alpha = Math.round(op / 10f * 235f);
+			if (alpha > 4) {
+				int col = (alpha << 24) | 0x1A1026;
+				boolean merge = PipouOptions.isEnabled("hud.merge");
+				if (merge) {
+					// Fusion : un seul badge englobe tous les membres de la colonne par défaut.
+					int minx = Integer.MAX_VALUE, miny = Integer.MAX_VALUE, maxx = Integer.MIN_VALUE, maxy = Integer.MIN_VALUE, n = 0;
+					for (Unit u : units) if (u.inCol()) { minx = Math.min(minx, u.x()); miny = Math.min(miny, u.y()); maxx = Math.max(maxx, u.x() + u.w()); maxy = Math.max(maxy, u.y() + u.h()); n++; }
+					if (n > 0) badge(g, minx - 3, miny - 2, maxx + 3, maxy + 2, col);
+					for (Unit u : units) if (!u.inCol()) badge(g, u.x() - 3, u.y() - 2, u.x() + u.w() + 3, u.y() + u.h() + 2, col);
+				} else {
+					for (Unit u : units) badge(g, u.x() - 3, u.y() - 2, u.x() + u.w() + 3, u.y() + u.h() + 2, col);
+				}
+			}
+		}
+
+		// --- Passe 3 : contenu + boîtes pour l'éditeur ---
+		for (Unit u : units) {
+			if (u.empty()) ghost(g, mc, u.x(), u.y(), u.w(), u.h(), label(u.id()));
+			else drawDash(g, mc, u.id(), u.x(), u.y());
+			lastBoxes.put(u.id(), new int[]{ u.x(), u.y(), u.w(), u.h() });
+		}
+	}
+
+	// Fond « badge » arrondi (coins 2px) semi-transparent.
+	private static void badge(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
+		if (x2 <= x1 || y2 <= y1) return;
+		g.fill(x1 + 2, y1, x2 - 2, y2, color);       // bande centrale (pleine hauteur)
+		g.fill(x1, y1 + 2, x1 + 2, y2 - 2, color);   // bord gauche
+		g.fill(x2 - 2, y1 + 2, x2, y2 - 2, color);   // bord droit
+		g.fill(x1 + 1, y1 + 1, x1 + 2, y1 + 2, color); // coins (1px)
+		g.fill(x2 - 2, y1 + 1, x2 - 1, y1 + 2, color);
+		g.fill(x1 + 1, y2 - 2, x1 + 2, y2 - 1, color);
+		g.fill(x2 - 2, y2 - 2, x2 - 1, y2 - 1, color);
 	}
 
 	// Cartouche fantôme (éditeur uniquement) pour un module activé sans contenu à l'instant.
@@ -146,6 +195,7 @@ public class PipouHud {
 	private static int[] measure(Minecraft mc, String id) {
 		if (id.equals("armor")) return armorSize(mc);
 		if (id.equals("keystrokes")) return new int[]{ 64, 64 };
+		if (id.equals("compass")) return new int[]{ COMPASS_W, PipouOptions.isEnabled("compass.degrees") ? 20 : 11 };
 		List<Line> ls = lines(mc, id);
 		int w = 0;
 		for (Line l : ls) w = Math.max(w, mc.font.width(l.text()));
@@ -155,6 +205,7 @@ public class PipouHud {
 	private static void drawDash(GuiGraphics g, Minecraft mc, String id, int x, int y) {
 		if (id.equals("armor")) { drawArmor(g, mc, x, y); return; }
 		if (id.equals("keystrokes")) { drawKeystrokes(g, mc, x, y); return; }
+		if (id.equals("compass")) { drawCompass(g, mc, x, y); return; }
 		List<Line> ls = lines(mc, id);
 		for (int i = 0; i < ls.size(); i++) {
 			Line l = ls.get(i);
@@ -299,5 +350,47 @@ public class PipouHud {
 		g.fill(x, y, x + w, y + 20, down ? 0xE6FF7EC9 : 0x99201530);
 		int tw = mc.font.width(label);
 		g.drawString(mc.font, Component.literal(label), x + (w - tw) / 2, y + 6, down ? INK : WHITE);
+	}
+
+	// Boussole horizontale (façon Feather) : ruban gradué N/E/S/O, pointeur central = direction visée.
+	private static void drawCompass(GuiGraphics g, Minecraft mc, int x, int y) {
+		int cx = x + COMPASS_W / 2;
+		// Cap boussole (N=0, E=90, S=180, O=270) depuis le yaw MC (0=S, 90=O, 180=N, 270=E).
+		double facing = (mc.player.getYRot() + 180.0) % 360.0;
+		if (facing < 0) facing += 360.0;
+		double visibleDeg = 120.0;
+		double pxPerDeg = COMPASS_W / visibleDeg;
+		for (int b = 0; b < 360; b += 15) {
+			double diff = ((b - facing + 540.0) % 360.0) - 180.0; // écart signé [-180,180]
+			if (Math.abs(diff) > visibleDeg / 2.0) continue;
+			int tx = cx + (int) Math.round(diff * pxPerDeg);
+			String card = cardinal(b);
+			if (card != null) {
+				int col = b == 0 ? 0xFFFF6B6B : (b % 90 == 0 ? WHITE : LAV); // Nord en rouge
+				g.drawString(mc.font, Component.literal(card), tx - mc.font.width(card) / 2, y + 2, col);
+			} else {
+				g.fill(tx, y + 2, tx + 1, y + 6, 0x66FFFFFF); // graduation intermédiaire
+			}
+		}
+		g.fill(cx, y, cx + 1, y + 10, PINK); // pointeur central
+		if (PipouOptions.isEnabled("compass.degrees")) {
+			String deg = Math.round(facing) + "°";
+			g.drawString(mc.font, Component.literal(deg), cx - mc.font.width(deg) / 2, y + 11, WHITE);
+		}
+	}
+
+	// Lettre cardinale à la relève boussole b (0=N,90=E,180=S,270=O ; 45=NE...), sinon null (graduation).
+	private static String cardinal(int b) {
+		return switch (b) {
+			case 0 -> "N";
+			case 45 -> "NE";
+			case 90 -> "E";
+			case 135 -> "SE";
+			case 180 -> "S";
+			case 225 -> "SO";
+			case 270 -> "O";
+			case 315 -> "NO";
+			default -> null;
+		};
 	}
 }
