@@ -26,6 +26,8 @@ public final class PipouOptions {
 		DEFAULTS.put("chat.timestamps", true);
 		DEFAULTS.put("chat.stacking", true);
 		DEFAULTS.put("chat.copyscreen", true);
+		DEFAULTS.put("chatkeep", true);   // garder le chat toute la session (façon Feather)
+		DEFAULTS.put("chatcopy", true);   // Ctrl+clic droit = copier un message
 		DEFAULTS.put("tabbadge", true);
 		DEFAULTS.put("emoji", true);
 		DEFAULTS.put("hudscale", true); // échelle HUD constante (indépendante du GUI Scale MC) d'emblée

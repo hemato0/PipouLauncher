@@ -28,6 +28,14 @@ public class ChatComponentMixin {
 	@Shadow @Final private List<GuiMessage> allMessages;
 	@Shadow private void refreshTrimmedMessages() { throw new AssertionError(); }
 
+	// « Garder le chat toute la session » (façon Feather) : le jeu vide le chat au changement
+	// de serveur/monde (clearMessages appelé à la déconnexion). Si l'option est active, on annule
+	// -> l'historique visible survit à toute la session. Non-requis : sans effet si absent.
+	@Inject(method = "clearMessages", at = @At("HEAD"), cancellable = true)
+	private void pipou$keep(boolean clearHistory, CallbackInfo ci) {
+		if (PipouOptions.isEnabled("chatkeep")) ci.cancel();
+	}
+
 	@Inject(
 			method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
 			at = @At("HEAD"),

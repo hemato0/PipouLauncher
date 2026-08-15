@@ -60,6 +60,8 @@ public final class PipouModules {
 					Opt.bool("chat.stacking", "Empiler les doublons (xN)"),
 					Opt.bool("chat.copyscreen", "Bouton « Copier » sur les captures")}),
 			new Module("autotext", "Auto-texte", "Chat", "autotext", true, NONE),
+			new Module("chatkeep", "Garder le chat (session)", "Chat", "chat_stacking", true, NONE),
+			new Module("chatcopy", "Copier un message (Ctrl+clic droit)", "Chat", "chat_copyscreen", true, NONE),
 			new Module("emoji", "Emojis chat", "Chat", "emoji", true, NONE),
 			// --- Tab ---
 			new Module("tabbadge", "Badge Pipou (tab)", "Tab", "tab_pipou", false, NONE)
