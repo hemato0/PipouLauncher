@@ -59,9 +59,23 @@ public final class PipouScreenshot {
 		return out;
 	}
 
+	/** LA dernière capture = le PNG le plus récent du dossier screenshots/. FIABLE (aucun parsing
+	 *  de texte, aucun chemin deviné). On garde lastFile comme repli si le dossier était vide. */
+	public static File latest() {
+		try {
+			File shots = new File(Minecraft.getInstance().gameDirectory, "screenshots");
+			File[] pngs = shots.listFiles((d, n) -> n.toLowerCase().endsWith(".png"));
+			File newest = null;
+			if (pngs != null) for (File f : pngs)
+				if (f.isFile() && (newest == null || f.lastModified() > newest.lastModified())) newest = f;
+			if (newest != null) return newest;
+		} catch (Throwable ignored) {}
+		return (lastFile != null && lastFile.isFile()) ? lastFile : null;
+	}
+
 	/** Copie l'image de la dernière capture dans le presse-papiers système (AWT). */
 	public static boolean copyLast() {
-		File f = lastFile;
+		File f = latest();
 		if (f == null || !f.isFile()) return false;
 		try {
 			BufferedImage img = ImageIO.read(f);

@@ -16,4 +16,7 @@ public interface ChatComponentAccessor {
 
 	/** Lignes actuellement affichées (les plus récentes en tête). */
 	@Accessor("trimmedMessages") List<GuiMessage.Line> pipou$trimmed();
+
+	/** Décalage de défilement du chat (0 = en bas). Sert au repli géométrique de la copie. */
+	@Accessor("chatScrollbarPos") int pipou$scrollPos();
 }

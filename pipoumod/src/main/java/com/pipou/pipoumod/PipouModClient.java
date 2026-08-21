@@ -171,7 +171,7 @@ public class PipouModClient implements ClientModInitializer {
 	/** Ouvre la dernière capture dans la visionneuse par défaut de l'OS (AWT, indépendant de la version MC). */
 	private static void doOpenScreenshot() {
 		new Thread(() -> {
-			java.io.File f = PipouScreenshot.lastFile;
+			java.io.File f = PipouScreenshot.latest();
 			boolean ok = false;
 			if (f != null && f.isFile()) {
 				try { java.awt.Desktop.getDesktop().open(f); ok = true; } catch (Throwable ignored) {}

@@ -98,6 +98,10 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.44', items: [
+    { t: 'fix', s: 'Boutons Copier / Ouvrir du screenshot : prennent la dernière capture du dossier (fini le « rien à copier »).' },
+    { t: 'fix', s: 'Ctrl + clic droit pour copier un message : détection de la ligne plus fiable.' }
+  ] },
   { v: '0.1.43', items: [
     { t: 'fix', s: 'Comptes protégés : si config.json est abîmé par un crash/coupure, le launcher se répare tout seul depuis une sauvegarde (plus de comptes « perdus »).' }
   ] },
