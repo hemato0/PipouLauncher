@@ -98,6 +98,9 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.43', items: [
+    { t: 'fix', s: 'Comptes protégés : si config.json est abîmé par un crash/coupure, le launcher se répare tout seul depuis une sauvegarde (plus de comptes « perdus »).' }
+  ] },
   { v: '0.1.42', items: [
     { t: 'new', s: 'Éditeur de HUD refait, plus propre : rapproche deux overlays pour les fusionner en une bulle.' },
     { t: 'new', s: 'Le profil de performance choisi est mémorisé (il reste au redémarrage).' },
