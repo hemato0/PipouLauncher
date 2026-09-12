@@ -26,6 +26,7 @@ public class PipouModClient implements ClientModInitializer {
 	public static final String CATEGORY = "category.pipoumod";
 	private static KeyMapping openMenuKey;
 	private static KeyMapping copyShotKey;
+	private static KeyMapping openShotKey;
 	private static KeyMapping zoomKey;
 	private static KeyMapping hudEditorKey;
 	private static KeyMapping freelookKey;
@@ -60,6 +61,14 @@ public class PipouModClient implements ClientModInitializer {
 		// Touche « copier la dernière capture » (non liée par défaut).
 		copyShotKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
 				"key.pipoumod.copy_screenshot",
+				InputConstants.Type.KEYSYM,
+				GLFW.GLFW_KEY_UNKNOWN,
+				CATEGORY));
+
+		// Touche « ouvrir la dernière capture » (non liée par défaut). Chemin SÛR : ne dépend ni
+		// du chat ouvert, ni d'un ClickEvent, ni du routage des commandes client.
+		openShotKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+				"key.pipoumod.open_screenshot",
 				InputConstants.Type.KEYSYM,
 				GLFW.GLFW_KEY_UNKNOWN,
 				CATEGORY));
@@ -121,6 +130,7 @@ public class PipouModClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while (openMenuKey.consumeClick()) client.setScreen(new PipouScreen());
 			while (copyShotKey.consumeClick()) doCopyScreenshot();
+			while (openShotKey.consumeClick()) doOpenScreenshot();
 			while (autoTextKey.consumeClick()) client.setScreen(new PipouAutoTextScreen());
 			while (hudEditorKey.consumeClick()) client.setScreen(new PipouHudEditScreen());
 			if (client.player != null) {
@@ -153,10 +163,16 @@ public class PipouModClient implements ClientModInitializer {
 		PipouHud.register();
 	}
 
+	// Journal du mod : tout passe dans latest.log -> diagnostic possible sans être devant l'écran.
+	private static final org.slf4j.Logger PIPOU_LOG = org.slf4j.LoggerFactory.getLogger("pipoumod");
+
 	/** Copie la dernière capture (thread séparé pour ne pas bloquer le rendu) puis feedback chat. */
 	private static void doCopyScreenshot() {
+		PIPOU_LOG.info("[capture] /pipoucopyshot demande");
 		new Thread(() -> {
+			java.io.File f = PipouScreenshot.latest();
 			boolean ok = PipouScreenshot.copyLast();
+			PIPOU_LOG.info("[capture] copie -> fichier={} ok={}", (f == null ? "AUCUN" : f.getName()), ok);
 			Minecraft mc = Minecraft.getInstance();
 			mc.execute(() -> {
 				if (mc.player == null) return;
@@ -170,20 +186,26 @@ public class PipouModClient implements ClientModInitializer {
 
 	/** Ouvre la dernière capture dans la visionneuse par défaut de l'OS (AWT, indépendant de la version MC). */
 	private static void doOpenScreenshot() {
+		PIPOU_LOG.info("[capture] /pipouopenshot demande");
 		new Thread(() -> {
 			java.io.File f = PipouScreenshot.latest();
 			boolean ok = false;
+			String err = null;
 			if (f != null && f.isFile()) {
-				try { java.awt.Desktop.getDesktop().open(f); ok = true; } catch (Throwable ignored) {}
+				try { java.awt.Desktop.getDesktop().open(f); ok = true; }
+				catch (Throwable e) { err = e.getClass().getSimpleName() + ": " + e.getMessage(); }
 			}
+			PIPOU_LOG.info("[capture] ouverture -> fichier={} ok={} err={}",
+					(f == null ? "AUCUN" : f.getName()), ok, (err == null ? "-" : err));
 			Minecraft mc = Minecraft.getInstance();
 			final boolean done = ok;
+			final String e2 = err;
 			mc.execute(() -> {
 				if (mc.player == null) return;
 				mc.player.displayClientMessage(Component.literal(done
 								? "Capture ouverte."
-								: "Aucune capture récente à ouvrir.")
-						.withStyle(s -> s.withColor(done ? 0xFF7EC9 : 0xFFAA88)), true);
+								: ("Impossible d'ouvrir la capture" + (e2 != null ? " (" + e2 + ")" : " : aucune trouvée.")))
+						.withStyle(s -> s.withColor(done ? 0xFF7EC9 : 0xFFAA88)), false);
 			});
 		}, "pipou-open-screenshot").start();
 	}

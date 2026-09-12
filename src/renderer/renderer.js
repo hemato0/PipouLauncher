@@ -98,6 +98,11 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.45', items: [
+    { t: 'new', s: 'Touches dédiées « copier / ouvrir la dernière capture » (Options → Commandes) — marche sans passer par le chat.' },
+    { t: 'fix', s: 'Copier un message : Ctrl + clic droit OU gauche (certains mods mangeaient le clic droit). Le chat doit être ouvert (T).' },
+    { t: 'fix', s: 'Messages de capture visibles dans le chat, et petite erreur de resource-pack corrigée.' }
+  ] },
   { v: '0.1.44', items: [
     { t: 'fix', s: 'Boutons Copier / Ouvrir du screenshot : prennent la dernière capture du dossier (fini le « rien à copier »).' },
     { t: 'fix', s: 'Ctrl + clic droit pour copier un message : détection de la ligne plus fiable.' }

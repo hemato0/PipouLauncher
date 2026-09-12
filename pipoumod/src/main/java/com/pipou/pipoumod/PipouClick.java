@@ -83,12 +83,22 @@ public final class PipouClick {
 		return null;
 	}
 
+	private static boolean logged = false;
+
 	/** Texte de chat cliquable qui exécute {@code cmd} (RUN_COMMAND). Repli : texte coloré non cliquable. */
 	public static MutableComponent button(String label, int rgb, String cmd) {
 		Style st = Style.EMPTY.withColor(rgb).withBold(true);
 		Object ce = clickEvent(cmd);
+		boolean attached = false;
 		if (ce != null && withClick != null) {
-			try { st = (Style) withClick.invoke(st, ce); } catch (Throwable ignored) {}
+			try { st = (Style) withClick.invoke(st, ce); attached = true; } catch (Throwable ignored) {}
+		}
+		// Sonde (une seule fois) : dit dans latest.log si les boutons du chat sont VRAIMENT cliquables.
+		if (!logged) {
+			logged = true;
+			org.slf4j.LoggerFactory.getLogger("pipoumod").info(
+					"[bouton chat] clickEvent={} withClickEvent={} -> cliquable={}",
+					(ce != null), (withClick != null), attached);
 		}
 		return Component.literal(label).setStyle(st);
 	}
