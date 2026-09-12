@@ -11,7 +11,9 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
@@ -33,6 +35,23 @@ public class ChatComponentMixin {
 	@Inject(method = "clearMessages", at = @At("HEAD"), cancellable = true)
 	private void pipou$keep(boolean clearHistory, CallbackInfo ci) {
 		if (PipouOptions.isEnabled("chatkeep")) ci.cancel();
+	}
+
+	// PLAFOND D'HISTORIQUE. Vanilla jette tout au-delà de 100 messages (constante 100 dans
+	// addMessageToQueue = messages, et addMessageToDisplayQueue = lignes affichées) : impossible
+	// de remonter au début de la session. On relève le plafond quand « garder le chat » est actif.
+	// Ciblage des deux méthodes CONFIRMÉES au bytecode ; non-requis -> si une version ne les a
+	// pas, le plafond vanilla reste (aucun crash).
+	private static final int PIPOU_CHAT_CAP = 3000;
+
+	@ModifyConstant(method = "addMessageToQueue", constant = @Constant(intValue = 100))
+	private int pipou$queueCap(int original) {
+		return PipouOptions.isEnabled("chatkeep") ? PIPOU_CHAT_CAP : original;
+	}
+
+	@ModifyConstant(method = "addMessageToDisplayQueue", constant = @Constant(intValue = 100))
+	private int pipou$displayCap(int original) {
+		return PipouOptions.isEnabled("chatkeep") ? PIPOU_CHAT_CAP : original;
 	}
 
 	@Inject(

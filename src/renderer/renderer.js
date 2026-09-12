@@ -98,6 +98,9 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.46', items: [
+    { t: 'new', s: 'Tu peux remonter le chat jusqu’au début de la session : l’historique passe de 100 à 3000 messages.' }
+  ] },
   { v: '0.1.45', items: [
     { t: 'new', s: 'Touches dédiées « copier / ouvrir la dernière capture » (Options → Commandes) — marche sans passer par le chat.' },
     { t: 'fix', s: 'Copier un message : Ctrl + clic droit OU gauche (certains mods mangeaient le clic droit). Le chat doit être ouvert (T).' },
