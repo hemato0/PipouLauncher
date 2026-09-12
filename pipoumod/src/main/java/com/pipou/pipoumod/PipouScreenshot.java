@@ -73,17 +73,73 @@ public final class PipouScreenshot {
 		return (lastFile != null && lastFile.isFile()) ? lastFile : null;
 	}
 
-	/** Copie l'image de la dernière capture dans le presse-papiers système (AWT). */
+	/**
+	 * Copie l'image de la dernière capture dans le presse-papiers.
+	 *
+	 * ATTENTION : Minecraft force `java.awt.headless=true` au démarrage -> TOUT AWT lève
+	 * HeadlessException (presse-papiers ET Desktop). On tente AWT seulement s'il est utilisable,
+	 * sinon on passe par une commande SYSTÈME (processus séparé, donc pas headless).
+	 */
 	public static boolean copyLast() {
 		File f = latest();
 		if (f == null || !f.isFile()) return false;
+		if (!java.awt.GraphicsEnvironment.isHeadless()) {
+			try {
+				BufferedImage img = ImageIO.read(f);
+				if (img != null) {
+					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new ImageTransferable(img), null);
+					return true;
+				}
+			} catch (Throwable ignored) { /* on bascule sur l'OS */ }
+		}
+		return copyViaOs(f);
+	}
+
+	/** Presse-papiers via l'OS (sans AWT). Windows : PowerShell -sta + SetDataObject(persist=true). */
+	private static boolean copyViaOs(File f) {
+		String os = System.getProperty("os.name", "").toLowerCase();
+		String path = f.getAbsolutePath();
 		try {
-			BufferedImage img = ImageIO.read(f);
-			if (img == null) return false;
-			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new ImageTransferable(img), null);
-			return true;
+			ProcessBuilder pb;
+			if (os.contains("win")) {
+				// -sta : Clipboard exige un thread STA. SetDataObject($i,$true) : la donnée SURVIT
+				// à la fin du processus PowerShell (sinon le presse-papiers serait vidé aussitôt).
+				String ps = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;"
+						+ "$i=[System.Drawing.Image]::FromFile('" + path.replace("'", "''") + "');"
+						+ "[System.Windows.Forms.Clipboard]::SetDataObject($i,$true);";
+				pb = new ProcessBuilder("powershell", "-sta", "-NoProfile", "-NonInteractive", "-Command", ps);
+			} else if (os.contains("mac")) {
+				pb = new ProcessBuilder("osascript", "-e",
+						"set the clipboard to (read (POSIX file \"" + path + "\") as TIFF picture)");
+			} else {
+				pb = new ProcessBuilder("xclip", "-selection", "clipboard", "-t", "image/png", "-i", path);
+			}
+			Process pr = pb.redirectErrorStream(true).start();
+			if (!pr.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)) { pr.destroy(); return false; }
+			return pr.exitValue() == 0;
 		} catch (Throwable e) {
 			return false;
+		}
+	}
+
+	/** Ouvre la dernière capture dans la visionneuse de l'OS. Renvoie null si OK, sinon l'erreur. */
+	public static String openLast() {
+		File f = latest();
+		if (f == null || !f.isFile()) return "aucune capture trouvée";
+		String path = f.getAbsolutePath();
+		if (!java.awt.GraphicsEnvironment.isHeadless()) {
+			try { java.awt.Desktop.getDesktop().open(f); return null; } catch (Throwable ignored) {}
+		}
+		String os = System.getProperty("os.name", "").toLowerCase();
+		try {
+			ProcessBuilder pb;
+			if (os.contains("win")) pb = new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", path);
+			else if (os.contains("mac")) pb = new ProcessBuilder("open", path);
+			else pb = new ProcessBuilder("xdg-open", path);
+			pb.start();
+			return null;
+		} catch (Throwable e) {
+			return e.getClass().getSimpleName() + ": " + e.getMessage();
 		}
 	}
 

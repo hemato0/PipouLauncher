@@ -31,8 +31,11 @@ public final class PipouChatCopy {
 				try {
 					double scale = chat.getScale();
 					double spacing = mc.options.chatLineSpacing().get() + 1.0;
+					// HAUTEUR DE LIGNE : vanilla = (int)(9 * (interligne + 1)). L'oublier donnait un
+					// index ~9x trop grand -> aucune ligne trouvée. Même formule que screenToChatY.
+					int lineH = Math.max(1, (int) (9.0 * spacing));
 					int guiH = mc.getWindow().getGuiScaledHeight();
-					double e = (guiH - my - 40.0) / (scale * spacing);
+					double e = (guiH - my - 40.0) / (scale * lineH);
 					if (e >= 0) {
 						int j = (int) Math.floor(e) + acc.pipou$scrollPos();
 						if (j >= 0 && j < lines.size()) idx = j;

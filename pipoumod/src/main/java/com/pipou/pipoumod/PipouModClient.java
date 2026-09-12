@@ -189,12 +189,9 @@ public class PipouModClient implements ClientModInitializer {
 		PIPOU_LOG.info("[capture] /pipouopenshot demande");
 		new Thread(() -> {
 			java.io.File f = PipouScreenshot.latest();
-			boolean ok = false;
-			String err = null;
-			if (f != null && f.isFile()) {
-				try { java.awt.Desktop.getDesktop().open(f); ok = true; }
-				catch (Throwable e) { err = e.getClass().getSimpleName() + ": " + e.getMessage(); }
-			}
+			// openLast() contourne AWT (headless dans Minecraft) via une commande système.
+			String err = PipouScreenshot.openLast();
+			boolean ok = (err == null);
 			PIPOU_LOG.info("[capture] ouverture -> fichier={} ok={} err={}",
 					(f == null ? "AUCUN" : f.getName()), ok, (err == null ? "-" : err));
 			Minecraft mc = Minecraft.getInstance();

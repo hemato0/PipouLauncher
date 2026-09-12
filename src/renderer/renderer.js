@@ -98,6 +98,10 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.47', items: [
+    { t: 'fix', s: 'Copier / Ouvrir une capture : ça marche enfin. Minecraft désactive AWT, on passe donc par le système (testé : l’image arrive bien dans le presse-papiers).' },
+    { t: 'fix', s: 'Copier un message du chat : la ligne sous le curseur est enfin trouvée (hauteur de ligne oubliée dans le calcul).' }
+  ] },
   { v: '0.1.46', items: [
     { t: 'new', s: 'Tu peux remonter le chat jusqu’au début de la session : l’historique passe de 100 à 3000 messages.' }
   ] },
