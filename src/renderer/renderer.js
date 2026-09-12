@@ -98,6 +98,9 @@ function renderHardware(hw) {
 // --- Nouveautés (changelog affiché sur l'accueil) ---
 // La plus récente en premier. t: 'new' (fonctionnalité) ou 'fix' (correction).
 const CHANGELOG = [
+  { v: '0.1.48', items: [
+    { t: 'new', s: 'Nouveau design du launcher : typo Manrope, icônes vectorielles, surfaces plates. Les nouveautés passent en grande colonne et chaque profil de performance est expliqué.' }
+  ] },
   { v: '0.1.47', items: [
     { t: 'fix', s: 'Copier / Ouvrir une capture : ça marche enfin. Minecraft désactive AWT, on passe donc par le système (testé : l’image arrive bien dans le presse-papiers).' },
     { t: 'fix', s: 'Copier un message du chat : la ligne sous le curseur est enfin trouvée (hauteur de ligne oubliée dans le calcul).' }
@@ -156,17 +159,21 @@ const CHANGELOG = [
 ]
 
 function renderNews() {
+  // La pastille de version de la barre de titre suit la dernière entrée du changelog.
+  const vp = $('verPill')
+  if (vp && CHANGELOG.length) vp.textContent = 'v' + CHANGELOG[0].v
   const el = $('newsList')
   if (!el) return
   el.innerHTML = CHANGELOG.map((rel, i) => `
     <div class="news-rel">
       <div class="news-ver">
-        <span class="news-dot"></span>v${esc(rel.v)}
-        ${i === 0 ? '<span class="news-badge">Dernière</span>' : ''}
+        v${esc(rel.v)}
+        ${i === 0 ? '<span class="news-badge">DERNIÈRE</span>' : ''}
       </div>
+      <div class="news-sep"></div>
       <ul class="news-items">
         ${rel.items.map(it =>
-          `<li class="news-item"><span class="news-tag ${it.t === 'fix' ? 'fix' : 'new'}">${it.t === 'fix' ? 'Fix' : 'Nouveau'}</span><span>${esc(it.s)}</span></li>`
+          `<li class="news-item"><span class="news-tag ${it.t === 'fix' ? 'fix' : 'new'}">${it.t === 'fix' ? 'CORRECTIF' : 'NOUVEAU'}</span><span>${esc(it.s)}</span></li>`
         ).join('')}
       </ul>
     </div>
@@ -175,9 +182,14 @@ function renderNews() {
 
 // --- Rendu des boutons de profil ---
 function renderProfiles() {
+  // Une LIGNE par profil : pastille radio + nom + explication (au lieu de 4 pastilles muettes).
   $('profiles').innerHTML = state.profiles.map(p =>
     `<div class="profile ${p.id === state.profile.id ? 'active' : ''}" data-id="${esc(p.id)}">
-       ${esc(p.name)}
+       <div class="p-radio"></div>
+       <div class="p-txt">
+         <span class="p-name">${esc(p.name)}</span>
+         <span class="p-desc">${esc(p.description || '')}</span>
+       </div>
      </div>`
   ).join('')
 
@@ -188,8 +200,17 @@ function renderProfiles() {
 
 // --- Rendu du profil courant (description, RAM, args JVM, réglages jeu) ---
 function renderCurrent() {
-  $('profileDesc').textContent = state.profile.description
-  $('ramValue').textContent = `${(state.ramMB / 1024).toFixed(1)} Go (${state.ramMB} Mo)`
+  // L'explication vit maintenant SUR chaque ligne de profil (l'ancien bloc n'existe plus).
+  const pd = $('profileDesc'); if (pd) pd.textContent = state.profile.description
+  $('ramValue').textContent = `${(state.ramMB / 1024).toFixed(1)} Go`
+  const mb = $('ramMb'); if (mb) mb.textContent = `${state.ramMB} Mo`
+  // Curseur RAM : part allouée sur la RAM totale de la machine.
+  const totalMB = Math.max(1, Math.round(((state.hw && state.hw.totalRamGB) || 16) * 1024))
+  const pct = Math.max(2, Math.min(100, Math.round(state.ramMB / totalMB * 100)))
+  const rf = $('ramFill'), rt = $('ramThumb'), rh = $('ramHint')
+  if (rf) rf.style.width = pct + '%'
+  if (rt) rt.style.left = pct + '%'
+  if (rh) rh.style.left = pct + '%'
   $('jvmArgs').textContent = state.jvmArgs.join('\n')
   // Méta JVM : GC choisi + Java.
   $('gcLabel').textContent = state.gcLabel || '—'

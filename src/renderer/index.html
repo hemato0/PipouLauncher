@@ -36,13 +36,14 @@
 
       <nav class="side-nav">
         <button class="nav-item active" data-view="home">
-          <span class="nav-ico">▚</span><span>Accueil</span>
+          <span class="nav-ico ico" style="--u:url(icons/layout-dashboard.svg)"></span><span>Accueil</span>
         </button>
         <button class="nav-item" data-view="mods">
-          <span class="nav-ico">❖</span><span>Mods</span>
+          <span class="nav-ico ico" style="--u:url(icons/package.svg)"></span><span>Mods</span>
+          <span class="nav-count" id="navModsCount"></span>
         </button>
         <button class="nav-item" data-view="advanced">
-          <span class="nav-ico">⚙</span><span>Avancé</span>
+          <span class="nav-ico ico" style="--u:url(icons/sliders-horizontal.svg)"></span><span>Avancé</span>
         </button>
       </nav>
 
@@ -87,36 +88,75 @@
         </div>
       </section>
 
+      <!-- Barre de titre (remplace la grande bannière) -->
+      <div class="topbar">
+        <div style="display:flex; flex-direction:column">
+          <span class="topbar-title">PipouLauncher</span>
+          <span class="topbar-sub">Ton Minecraft, optimisé avec amour pour ta machine.</span>
+        </div>
+        <span class="ver-pill" id="verPill">—</span>
+        <div class="topbar-actions">
+          <button class="tb-btn" id="openGameDirBtn">
+            <span class="ico" style="--u:url(icons/folder-open.svg)"></span>Dossier du jeu
+          </button>
+          <button class="tb-btn" id="verifyFilesBtn">
+            <span class="ico" style="--u:url(icons/refresh-cw.svg)"></span>Vérifier les fichiers
+          </button>
+        </div>
+      </div>
+
       <!-- ===== Vue : Accueil ===== -->
       <section class="view active" id="view-home">
-        <div class="cols">
+
+        <!-- Colonne large : le seul contenu qu'on lit vraiment -->
+        <div class="home-left">
+          <section class="card" id="card-news">
+            <div class="card-head">
+              <span class="ico" style="--u:url(icons/sparkles.svg)"></span>
+              <h2>Nouveautés</h2>
+              <span class="head-extra">Tout l'historique</span>
+            </div>
+            <div class="news" id="newsList"></div>
+          </section>
+        </div>
+
+        <div class="home-right">
           <section class="card" id="card-hw">
-            <h2>Ta machine</h2>
-            <div class="rows" id="hwRows">
-              <div class="muted">Analyse en cours…</div>
+            <div class="card-head">
+              <span class="ico" style="--u:url(icons/cpu.svg)"></span>
+              <h2>Ta machine</h2>
+            </div>
+            <div class="card-body">
+              <div class="rows" id="hwRows">
+                <div class="muted">Analyse en cours…</div>
+              </div>
             </div>
           </section>
 
           <section class="card" id="card-profile">
-            <h2>Profil de performance</h2>
-            <div class="profiles" id="profiles"></div>
-            <p class="profile-desc muted" id="profileDesc"></p>
-            <div class="ram">
-              <span>RAM allouée</span>
-              <strong id="ramValue">—</strong>
+            <div class="card-head">
+              <span class="ico" style="--u:url(icons/zap.svg)"></span>
+              <h2>Profil de performance</h2>
             </div>
-            <p class="ram-note muted">
-              Allouer plus de RAM n'augmente pas les FPS — au-delà du nécessaire,
-              ça peut même aggraver les freezes (GC plus long).
-            </p>
+            <div class="profiles" id="profiles"></div>
+            <div class="ram-block">
+              <div class="ram">
+                <span>RAM allouée</span>
+                <strong id="ramValue">—</strong>
+                <span class="ram-mb" id="ramMb"></span>
+              </div>
+              <div class="ram-track">
+                <div class="ram-fill" id="ramFill" style="width:0%"></div>
+                <div class="ram-thumb" id="ramThumb" style="left:0%"></div>
+                <div class="ram-hint" id="ramHint" style="left:0%">recommandé</div>
+              </div>
+              <p class="ram-note">
+                Allouer plus de RAM n'augmente pas les FPS — au-delà du nécessaire,
+                ça peut même aggraver les freezes (GC plus long).
+              </p>
+            </div>
           </section>
         </div>
-
-        <!-- Nouveautés : historique des mises à jour + corrections, rempli par renderNews(). -->
-        <section class="card" id="card-news">
-          <h2>Nouveautés</h2>
-          <div class="news" id="newsList"></div>
-        </section>
 
         <!-- Carte « Mods d'optimisation » retirée : ils sont installés AUTOMATIQUEMENT
              au lancement (ceux qui manquent), plus besoin d'action manuelle. -->
@@ -239,31 +279,34 @@
 
   <!-- ===== Barre de lancement (pleine largeur) ===== -->
   <footer class="launchbar">
-    <div class="launch-summary">
-      <div class="sum">
-        <span class="sum-k">Profil</span>
-        <span class="sum-v" id="footProfile">—</span>
-      </div>
-      <div class="sum">
-        <span class="sum-k">RAM</span>
-        <span class="sum-v" id="footRam">—</span>
-      </div>
-      <div class="sum status-sum">
-        <span class="sum-k">État</span>
-        <span class="sum-v status" id="status">Prêt.</span>
-      </div>
+    <!-- État : une seule ligne de journal, plus de répétition du profil/RAM (déjà au-dessus) -->
+    <div class="lb-status">
+      <div class="lb-dot"></div>
+      <span class="lb-log status" id="status">Prêt.</span>
     </div>
+    <span hidden id="footProfile"></span>
+    <span hidden id="footRam"></span>
 
-    <div class="launch-actions">
-      <div class="version-picker">
-        <select id="profileSelect" title="Profil de mods"></select>
-        <select id="gameVersion">
-          <option value="1.21.1">1.21.1</option>
-        </select>
-        <span class="loader-tag" id="loaderTag">Fabric</span>
+    <div class="lb-right">
+      <div class="lb-sel">
+        <div class="lb-col">
+          <span class="lbl">PROFIL</span>
+          <select id="profileSelect" title="Profil de mods"></select>
+        </div>
+        <span class="ico" style="--u:url(icons/chevron-down.svg)"></span>
       </div>
-      <button class="btn play" id="playBtn" disabled title="Auth + lancement : prochaine étape">
-        ▶ JOUER
+      <div class="lb-sel">
+        <div class="lb-col">
+          <span class="lbl">VERSION</span>
+          <div class="lb-ver">
+            <select id="gameVersion"><option value="1.21.1">1.21.1</option></select>
+            <span class="loader-tag" id="loaderTag">Fabric</span>
+          </div>
+        </div>
+        <span class="ico" style="--u:url(icons/chevron-down.svg)"></span>
+      </div>
+      <button class="btn play" id="playBtn" disabled>
+        <span class="ico" style="--u:url(icons/play.svg)"></span>JOUER
       </button>
     </div>
   </footer>
